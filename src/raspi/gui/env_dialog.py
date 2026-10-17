@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from raspi import APP_NAME
 from raspi.config import envstore
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.config.writer import add_env_file, remove_env_file
@@ -166,7 +167,7 @@ class EnvDialog(QDialog):
                             self._app = app
                             return True
         except ConfigError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
         return False
 
     def add_file(self) -> None:
@@ -184,7 +185,7 @@ class EnvDialog(QDialog):
         try:
             add_env_file(self._host.name, self._app.name, label, path)
         except ConfigError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
             return
         if self._reload_app():
             self._fill_picker(self._env.label)
@@ -199,7 +200,7 @@ class EnvDialog(QDialog):
         if (
             QMessageBox.question(
                 self,
-                "raspi",
+                APP_NAME,
                 f"Stop managing {self._env.path} in raspi?\n"
                 "The file on the Pi and your local copy are not deleted.",
             )
@@ -209,7 +210,7 @@ class EnvDialog(QDialog):
         try:
             remove_env_file(self._host.name, self._app.name, self._env.label)
         except ConfigError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
             return
         self._dirty = False
         if not self._reload_app() or not self._app.env_files:
@@ -248,7 +249,7 @@ class EnvDialog(QDialog):
         if (
             self._dirty
             and QMessageBox.question(
-                self, "raspi", "Switch file and discard your unsaved changes?"
+                self, APP_NAME, "Switch file and discard your unsaved changes?"
             )
             != QMessageBox.StandardButton.Yes
         ):
@@ -374,7 +375,7 @@ class EnvDialog(QDialog):
                 self._host.name, self._app.name, self.values(), self._env.label
             )
         except EnvError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
             return False
         self._dirty = False
         self._update_sync()
@@ -390,14 +391,14 @@ class EnvDialog(QDialog):
             or remote.parsed is None
         ):
             QMessageBox.information(
-                self, "raspi", "There is no readable file on the Pi to import."
+                self, APP_NAME, "There is no readable file on the Pi to import."
             )
             return
         if (
             self.table.rowCount()
             and QMessageBox.question(
                 self,
-                "raspi",
+                APP_NAME,
                 "Replace the variables shown here with the ones from the Pi?",
             )
             != QMessageBox.StandardButton.Yes
@@ -416,12 +417,12 @@ class EnvDialog(QDialog):
             for key, value in values.items():
                 check_pair(key, value)
         except EnvError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
             return
         if remote is None or not remote.ok:
             QMessageBox.warning(
                 self,
-                "raspi",
+                APP_NAME,
                 "The Pi file could not be read, so pushing is blocked. Try again later.",
             )
             return
@@ -443,7 +444,7 @@ class EnvDialog(QDialog):
             lines.append(f"Then restarts {self._app.name}.")
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle("raspi")
+        box.setWindowTitle(APP_NAME)
         box.setText("\n".join(lines))
         go = box.addButton(
             "Push and restart" if restart else "Push", QMessageBox.ButtonRole.AcceptRole
@@ -473,7 +474,7 @@ class EnvDialog(QDialog):
         pushed, restarted = payload
         self._set_busy(False)
         if not pushed.ok:
-            QMessageBox.critical(self, "raspi", f"Push failed: {pushed.message}")
+            QMessageBox.critical(self, APP_NAME, f"Push failed: {pushed.message}")
             return
         msg = f"Pushed ({pushed.message})."
         if restarted is not None:
@@ -485,7 +486,7 @@ class EnvDialog(QDialog):
 
     def _on_push_failed(self, message: str) -> None:
         self._set_busy(False)
-        QMessageBox.critical(self, "raspi", f"Push failed: {message}")
+        QMessageBox.critical(self, APP_NAME, f"Push failed: {message}")
 
     def _set_busy(self, busy: bool) -> None:
         for b in (self.btn_import, self.btn_save, self.btn_push, self.btn_push_restart):
@@ -495,7 +496,7 @@ class EnvDialog(QDialog):
         if (
             self._dirty
             and QMessageBox.question(
-                self, "raspi", "Close without saving your changes?"
+                self, APP_NAME, "Close without saving your changes?"
             )
             != QMessageBox.StandardButton.Yes
         ):

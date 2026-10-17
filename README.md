@@ -1,13 +1,13 @@
-# raspi
+# raspi-manager
 
 Manage personal apps on several Raspberry Pi from a Windows PC, over SSH, with no agent on the Pi.
 
-> **Status: early.** Status, logs and start/stop/restart of apps on your Pi work in the CLI and in a local dashboard (`raspi web`); actions are only tested with a fake transport so far. Deploy, env vars and routing are not implemented yet (see [SPEC](docs/SPEC.md) for each feature's status).
+> **Status: early.** Status, logs and start/stop/restart of apps on your Pi work in the CLI and in a local dashboard (`raspi-manager web`); actions are only tested with a fake transport so far. Deploy, env vars and routing are not implemented yet (see [SPEC](docs/SPEC.md) for each feature's status).
 
 ```powershell
 python -m uv sync
-python -m uv run raspi status      # needs ~/.raspi/hosts.yaml and a working ssh-agent key
-python -m uv run raspi web         # http://127.0.0.1:8765
+python -m uv run raspi-manager status      # needs ~/.raspi/hosts.yaml and a working ssh-agent key
+python -m uv run raspi-manager web         # http://127.0.0.1:8765
 ```
 
 ## What it will do
@@ -19,9 +19,9 @@ python -m uv run raspi web         # http://127.0.0.1:8765
 
 ## Native app (main interface)
 ```powershell
-raspi.vbs                                    # double-click launcher (no console at all; installs dependencies on first run)
-python -m uv run raspi gui                   # or from a terminal, or the Desktop shortcut
-powershell -File scripts\install-shortcut.ps1   # creates the "raspi" Desktop shortcut
+raspi-manager.vbs                            # double-click launcher (no console at all; installs dependencies on first run)
+python -m uv run raspi-manager               # opens the window (aliases: raspi, rpim); or use the Desktop shortcut
+powershell -File scripts\install-shortcut.ps1   # creates the "raspi-manager" Desktop shortcut
 ```
 Live table of your apps (refreshed every 10 s), Restart / Start / Stop with confirmation, Logs panel, light/dark following Windows, and an **Environment…** editor (Ctrl+E) for each app that has an `env_file` in `~/.raspi/hosts.yaml`: masked values, import from the Pi, save locally, push (optionally restarting the app).
 

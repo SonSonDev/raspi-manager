@@ -2,7 +2,7 @@
 Source of truth for scope and behaviour. Status: `planned` · `in progress` · `done` · `dropped`.
 
 ## Overview
-`raspi` is a CLI plus local dashboard (`raspi web`, `127.0.0.1`) to manage apps on several Raspberry Pi over SSH. Config lives in `~/.raspi/` on the PC. The real state is always read from the Pi.
+`raspi-manager` is a native Windows app, a CLI and a local web dashboard (`raspi-manager web`, `127.0.0.1`) to manage apps on several Raspberry Pi over SSH. Config lives in `~/.raspi/` on the PC. The real state is always read from the Pi.
 
 **GUI parity rule (decided 2026-10-17):** everything needed to bring a project live must be doable from the dashboard without typing commands: add a Pi (including the first SSH key install), adopt or create an app, set env vars, deploy, route a hostname, start/stop/pause/restart, read logs. The CLI stays as the scriptable twin; both call the same services.
 

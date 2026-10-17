@@ -1,7 +1,7 @@
 [project]
-name = "raspi"
+name = "raspi-manager"
 version = "0.1.0"
-description = "Add your description here"
+description = "Manage apps, environment variables and routing on your Raspberry Pi from Windows, over SSH."
 authors = [
     { name = "sonsondev", email = "tsvincent.pham@gmail.com" }
 ]
@@ -17,11 +17,16 @@ dependencies = [
 ]
 
 [project.scripts]
-raspi = "raspi:main"
+raspi-manager = "raspi:main"
+raspi = "raspi:main"   # short alias kept from the old name
+rpim = "raspi:main"    # shortest alias
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "raspi"  # the Python package keeps its name; only the project is renamed
 
 [dependency-groups]
 dev = [

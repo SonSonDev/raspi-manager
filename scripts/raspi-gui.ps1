@@ -7,7 +7,7 @@
   dashboard in a dedicated Edge window, and stops the server again when that window
   is closed. If a server was already running, it is left alone.
 
-  -InstallShortcut creates a Desktop shortcut "raspi" that runs this script.
+  -InstallShortcut creates a Desktop shortcut "raspi-manager (web)" that runs this script.
 #>
 param(
     [int]$Port = 8765,
@@ -21,7 +21,7 @@ $data = Join-Path $env:LOCALAPPDATA 'raspi'
 New-Item -ItemType Directory -Force $data | Out-Null
 
 if ($InstallShortcut) {
-    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'raspi.lnk'
+    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'raspi-manager (web).lnk'
     $sh = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
     $sh.TargetPath = (Get-Command powershell.exe).Source
     $sh.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSCommandPath`""
@@ -43,19 +43,19 @@ function Test-Port([int]$p) {
 
 function Show-Error([string]$msg) {
     Add-Type -AssemblyName System.Windows.Forms
-    [void][System.Windows.Forms.MessageBox]::Show($msg, 'raspi', 'OK', 'Error')
+    [void][System.Windows.Forms.MessageBox]::Show($msg, 'raspi-manager', 'OK', 'Error')
 }
 
 $server = $null
 if (-not (Test-Port $Port)) {
     $log = Join-Path $data 'server.log'
     $server = Start-Process -FilePath python -WorkingDirectory $root -WindowStyle Hidden -PassThru `
-        -ArgumentList '-m', 'uv', 'run', 'raspi', 'web', '--port', $Port `
+        -ArgumentList '-m', 'uv', 'run', 'raspi-manager', 'web', '--port', $Port `
         -RedirectStandardError $log -RedirectStandardOutput (Join-Path $data 'server.out.log')
     $deadline = (Get-Date).AddSeconds(30)
     while (-not (Test-Port $Port)) {
         if ($server.HasExited -or (Get-Date) -gt $deadline) {
-            Show-Error "The raspi server did not start. See $log"
+            Show-Error "The raspi-manager server did not start. See $log"
             exit 1
         }
         Start-Sleep -Milliseconds 300

@@ -14,6 +14,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
+from raspi import APP_NAME
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.core.remote import ACTIONS
 from raspi.services.actions import LookupError_, find_app, read_logs, run_action
@@ -33,7 +34,7 @@ def _hostname(header: str) -> str:
 
 
 def create_app(transport: Transport | None = None) -> FastAPI:
-    app = FastAPI(title="raspi", docs_url=None, redoc_url=None)
+    app = FastAPI(title=APP_NAME, docs_url=None, redoc_url=None)
     ssh = transport or SshTransport()
     token = secrets.token_urlsafe(24)
 

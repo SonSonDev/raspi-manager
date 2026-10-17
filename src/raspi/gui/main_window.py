@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from raspi import APP_NAME
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.config.writer import add_env_file
 from raspi.core.models import Host, HostStatus
@@ -50,7 +51,7 @@ class MainWindow(QMainWindow):
         self._hosts = {h.name: h for h in hosts}
         self._transport = transport
         self._inflight: set[str] = set()
-        self.setWindowTitle("raspi")
+        self.setWindowTitle(APP_NAME)
         self.resize(1000, 640)
 
         self.model = FleetModel(hosts, tokens)
@@ -245,7 +246,7 @@ class MainWindow(QMainWindow):
         assert row.app
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle("raspi")
+        box.setWindowTitle(APP_NAME)
         box.setText(f"{action.capitalize()} {row.app.name} on {row.host.name}?")
         box.setInformativeText(
             f"Runs: sudo systemctl {action} {row.app.unit}\n"
@@ -274,7 +275,9 @@ class MainWindow(QMainWindow):
         else:
             self.status_label.setText(f"✕ {action} {name} failed")
             QMessageBox.critical(
-                self, "raspi", f"{action.capitalize()} {name} failed:\n{result.message}"
+                self,
+                APP_NAME,
+                f"{action.capitalize()} {name} failed:\n{result.message}",
             )
         self._refresh_host(key[0])
         self._update_buttons()
@@ -282,7 +285,7 @@ class MainWindow(QMainWindow):
     def _on_action_failed(self, key: tuple[str, str], message: str) -> None:
         self.model.set_pending(key, None)
         self.status_label.setText(f"✕ {key[1]}: {message}")
-        QMessageBox.critical(self, "raspi", message)
+        QMessageBox.critical(self, APP_NAME, message)
         self._update_buttons()
 
     def _refresh_host(self, host_name: str) -> None:
@@ -311,7 +314,7 @@ class MainWindow(QMainWindow):
             try:
                 add_env_file(row.host.name, app.name, *dialog.result_value)
             except ConfigError as exc:
-                QMessageBox.warning(self, "raspi", str(exc))
+                QMessageBox.warning(self, APP_NAME, str(exc))
                 return
             if not self.reload_config():
                 return
@@ -330,7 +333,7 @@ class MainWindow(QMainWindow):
         try:
             hosts = load_hosts()
         except ConfigError as exc:
-            QMessageBox.warning(self, "raspi", str(exc))
+            QMessageBox.warning(self, APP_NAME, str(exc))
             return False
         self._hosts = {h.name: h for h in hosts}
         self.model.set_hosts(hosts)

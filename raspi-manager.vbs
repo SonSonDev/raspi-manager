@@ -1,4 +1,4 @@
-' Launcher: opens the raspi native app with no console window at all.
+' Launcher: opens the raspi-manager native app with no console window at all.
 Option Explicit
 Dim shell, fso, root, pythonw, code
 Set shell = CreateObject("WScript.Shell")
@@ -11,7 +11,7 @@ If Not fso.FileExists(pythonw) Then
     ' First start only: a visible console shows the dependency installation.
     code = shell.Run("cmd /c python -m uv sync", 1, True)
     If code <> 0 Or Not fso.FileExists(pythonw) Then
-        MsgBox "Could not set up the environment. Is Python 3.12 installed and 'python -m uv' available?", 16, "raspi"
+        MsgBox "Could not set up the environment. Is Python 3.12 installed and 'python -m uv' available?", 16, "raspi-manager"
         WScript.Quit 1
     End If
 End If

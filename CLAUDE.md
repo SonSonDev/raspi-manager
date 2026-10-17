@@ -1,4 +1,4 @@
-# CLAUDE.md — raspi (Python CLI + local web dashboard, Windows PC → Raspberry Pi over SSH)
+# CLAUDE.md — raspi-manager (Python CLI + local web dashboard, Windows PC → Raspberry Pi over SSH)
 
 ## Context
 - Developer: solo, maintains personal projects on a Windows PC, pushes to private GitHub repos.
@@ -59,7 +59,7 @@
 ## Commands (to be confirmed at scaffold time)
 `uv` is not on PATH: use `python -m uv ...`.
 - `python -m uv sync` · `python -m uv run pytest` · `python -m uv run ruff check .` · `python -m uv run ruff format .`
-- `python -m uv run raspi gui` (native app; Desktop shortcut via `scripts/install-shortcut.ps1`)
-- `python -m uv run raspi status` (read-only live state) · `raspi logs <app> -n 50` (read-only) · `raspi start|stop|restart <app> [--dry-run] [--yes]` (**changes a Pi: only the developer runs these, never Claude**) · `python -m uv run raspi web` (http://127.0.0.1:8765)
+- Commands: `raspi-manager` (aliases `raspi`, `rpim`). Without a subcommand it opens the native app window; `python -m uv run raspi-manager status|logs|start|stop|restart|web`. Desktop shortcut via `scripts/install-shortcut.ps1`; no-console launcher `raspi-manager.vbs`.
+- `raspi-manager status` (read-only live state) · `raspi-manager logs <app> -n 50` (read-only) · `raspi-manager start|stop|restart <app> [--dry-run] [--yes]` (**changes a Pi: only the developer runs these, never Claude**) · `raspi-manager web` (http://127.0.0.1:8765)
 - Every `subprocess` call from the GUI must pass `creationflags=CREATE_NO_WINDOW` (done in `ssh/transport.py`, covered by `tests/test_transport.py`), otherwise Windows flashes a console window per call.
 - Config: `~/.raspi/hosts.yaml` (hosts and their apps). Subprocess input to ssh must be bytes (Windows would otherwise send CRLF to `sh`).

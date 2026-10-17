@@ -7,6 +7,7 @@ import sys
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from raspi import APP_NAME
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.gui.main_window import MainWindow
 from raspi.gui.theme import DARK, LIGHT, stylesheet
@@ -20,7 +21,7 @@ def _tokens(app: QApplication):
 def run() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
-    app.setApplicationName("raspi")
+    app.setApplicationName(APP_NAME)
     try:
         hosts, error = load_hosts(), ""
     except ConfigError as exc:

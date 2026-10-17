@@ -10,7 +10,20 @@ from raspi.services.actions import LookupError_, find_app, read_logs, run_action
 from raspi.services.status import collect_all
 from raspi.ssh.transport import SshTransport
 
-app = typer.Typer(no_args_is_help=True, help="Manage apps on your Raspberry Pi.")
+app = typer.Typer(
+    help="raspi-manager: manage apps on your Raspberry Pi. Without a command, opens the app window.",
+    invoke_without_command=True,
+)
+
+
+@app.callback()
+def _open_window_by_default(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        from raspi.gui.app import run
+
+        raise typer.Exit(run())
+
+
 GLYPH = {
     "running": "● running",
     "stopped": "○ stopped",

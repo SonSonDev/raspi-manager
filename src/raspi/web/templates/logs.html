@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}logs {{ app.name }} - raspi{% endblock %}
+{% block title %}logs {{ app.name }} - raspi-manager{% endblock %}
 {% block headerlink %}<a href="/apps/{{ host.name }}/{{ app.name }}/logs" aria-keyshortcuts="r">Refresh (r)</a>{% endblock %}
 {% block content %}
   <h2>Logs: {{ app.name }}<small>{{ host.name }} · last {{ lines }} lines</small></h2>

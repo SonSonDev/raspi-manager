@@ -19,6 +19,12 @@ Not logged: visual tweaks, tuning values, reverted trials.
 - Alternatives rejected: `EnvironmentFile=` in raspi-generated units now (needs unit regeneration, planned later); sops/encrypted store (out of scope in T1); editing through sudo/system paths (rejected paths: /etc, /usr, /var...).
 - Consequences: the `.raspi-bak` files hold the previous secrets (mode 600); the local copies on the PC are plain text (backup is the developer's job); a push never restarts the app unless "Push and restart" is chosen.
 
+## 2026-10-17 — Project renamed to raspi-manager (visible names + commands only)
+- Decision: project name `raspi-manager` (pyproject, window titles via `raspi.APP_NAME`, README, launcher `raspi-manager.vbs`, Desktop shortcut `raspi-manager.lnk`). Commands: `raspi-manager`, `raspi` (alias) and `rpim` (alias). Run without a subcommand, the command opens the app window; subcommands and `--help` keep the CLI usage. `[tool.uv.build-backend] module-name = "raspi"` keeps the Python package name.
+- Why: the developer chose the name and aliases. The Pis are themselves called `raspi`/`raspi-v`, so docs now show `raspi-manager` to avoid ambiguity.
+- Alternatives rejected: renaming the folder, the package (`raspi_manager`) and `~/.raspi` (risky migration: the folder is the session/memory key, configs and env copies would have to move); can be done later as its own decision.
+- Consequences: older docs entries may still say `raspi gui`/`raspi web` (the alias works); `~/.raspi` and `%LOCALAPPDATA%aspi` keep their names.
+
 ## 2026-10-17 — Primary UI becomes a native PySide6 (Qt) app; web dashboard kept as secondary
 - Decision: `raspi gui` (shortcut "raspi" → `.venv\Scripts\pythonw.exe -m raspi.gui`) is the main interface: live table refreshed every 10 s, SSH in a thread pool (one job per host, so a slow Pi never blocks the others), confirmation dialogs for stop/restart, logs dock, light/dark following Windows. Package `PySide6-Essentials` 6.12.0 (resolved by uv 2026-10-17; Qt widgets only, ~80 MB, LGPL). The FastAPI/Jinja dashboard (`raspi web`) stays working but is no longer where new UI is built.
 - Why: the developer found the web dashboard not reactive enough ("pas hyper fan de l'interface web"); native Qt gives instant feedback and background updates without page reloads. Services layer was already UI-agnostic, so the GUI reuses `collect_host`, `run_action`, `read_logs`.
