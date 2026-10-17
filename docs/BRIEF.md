@@ -4,7 +4,7 @@
 - **Ambition / tier**: T1 personal tool.
 - **Scale**: 2–5 Pi with different roles, a handful of apps each, one developer, long-lived.
 - **Interfaces**: CLI + small local web dashboard (desktop browser, localhost).
-- **Constraints**: SSH only, no agent on the Pi; private repos via read-only deploy keys; env files on the PC outside git; systemd user services with linger; Cloudflare Tunnel managed through the Cloudflare API (requires a domain on Cloudflare); Windows 11 PC.
+- **Constraints**: SSH only, no agent on the Pi; private repos via read-only deploy keys; env files on the PC outside git; system-level systemd services run as the login user (passwordless sudo required); Cloudflare Tunnel managed through the Cloudflare API (requires a domain on Cloudflare); Windows 11 PC.
 - **Non-goals**: agent on the Pi, public/multi-user dashboard or auth, encrypted-secrets tooling (sops), Docker orchestration, push-triggered CI/CD, historical metrics, mobile app, Cloudflare Access/WAF and multi-Pi load-balancing (T1).
 
 ## Risks & assumptions to validate

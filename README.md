@@ -6,7 +6,7 @@ Manage personal apps on several Raspberry Pi from a Windows PC, over SSH, with n
 
 ## What it will do
 - Deploy apps (Python, Node) from private GitHub repos to one or more Pi, pinned to a tag, branch or commit, with rollback.
-- Run them permanently as systemd user services: start, stop, pause, resume, restart, logs.
+- Run them permanently as systemd services: start, stop, pause, resume, restart, logs.
 - Manage per-app environment variables (kept on the PC, outside git, pushed as `chmod 600` files).
 - Route web apps to the internet through a Cloudflare Tunnel managed via the Cloudflare API (hostname → local port).
 - Offer a CLI and a small local web dashboard (`127.0.0.1` only) showing every Pi and app at a glance.

@@ -8,7 +8,7 @@
 
 ## Stack (chosen 2026-10-17 — re-check versions online before pinning or upgrading)
 - Python managed with `uv`; **Typer** (CLI), **Fabric/Paramiko** (SSH), **FastAPI + Jinja2 + HTMX** (dashboard, server-rendered, `127.0.0.1` only), **PyYAML**, **httpx** (Cloudflare API), **pytest**, **ruff**. Versions NOT yet pinned: verify on PyPI when scaffolding.
-- On the Pi: `systemd --user` + linger, `git`, `uv`/Python, Node (per app), `cloudflared`.
+- On the Pi: system-level systemd units (run as the login user, passwordless sudo), `git`, `uv`/Python, Node (per app), `cloudflared`.
 - **Library policy**: anything not listed needs approval. Before adding: latest stable version, maintenance, publisher, licence; say what was added and why; log in DECISIONS.md.
 - **Version freshness**: when touching dependencies and at each milestone, compare with current stable releases. Never claim "verified" without checking online that session.
 
@@ -45,6 +45,7 @@
 ## Safety (environment)
 - Destructive remote actions (stop, rollback, delete env/route/tunnel, apt upgrades) require explicit confirmation in CLI (`--yes` to skip) and UI.
 - Dry-run (`--dry-run`) for deploy/route/provision commands that mutate a Pi or Cloudflare.
+- **Claude never modifies a Pi** (no migration, config/unit edits, installs, restarts, new processes). Read-only SSH inspection only; the developer does all changes through the raspi GUI. When a project needs adapting to raspi, say so instead of doing it.
 - Test against a real Pi only when the developer says which host; never touch a Pi or Cloudflare zone unprompted.
 
 ## Working agreement

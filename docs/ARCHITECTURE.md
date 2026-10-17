@@ -22,13 +22,13 @@ Dependencies point inward: `cli`/`web` → `services` → `core`; `services` →
 ~/apps/<app>/releases/<sha>/    checked-out code + venv or node_modules
 ~/apps/<app>/current -> releases/<sha>
 ~/apps/<app>/shared/            persistent data (kept across releases)
-~/.config/systemd/user/raspi-<app>.service   (EnvironmentFile=~/.config/raspi/<app>.env, chmod 600)
-~/.config/systemd/user/raspi-cloudflared.service   (tunnel connector)
+/etc/systemd/system/raspi-<app>.service   (User=<login user>, EnvironmentFile=/etc/raspi/<app>.env, chmod 600)
+/etc/systemd/system/cloudflared.service   (tunnel connector; config /etc/cloudflared/config.yml)
 ```
 
 ## Data flow
 - Deploy: CLI/web → `services.deploy` → `core` plans steps → `ssh` runs them (fetch → checkout → install → switch link → restart) → status re-read from systemd.
-- Status: web/CLI → `services.status` → parallel SSH per host (timeout) → `systemctl --user show`, `git rev-parse` → rendered with "last checked".
+- Status: web/CLI → `services.status` → parallel SSH per host (timeout) → `systemctl show`, `git rev-parse` → rendered with "last checked".
 - Route: `services.route` → `core` builds ingress list (catch-all last) → `cloudflare` updates tunnel config + DNS → dashboard shows URL.
 
 ## Conventions
