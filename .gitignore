@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Secrets / local config (real config lives in ~/.raspi, never in the repo)
+.env
+.env.*
+*.pem
+*.key
+id_*
+cloudflare*.token
+secrets/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
