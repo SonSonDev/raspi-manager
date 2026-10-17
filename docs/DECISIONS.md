@@ -2,6 +2,23 @@
 One entry per decision, newest first. A decision is only changed by a new entry that supersedes it.
 Not logged: visual tweaks, tuning values, reverted trials.
 
+## 2026-10-17 — Env files are declared from the app; hosts.yaml is rewritten by raspi
+- Decision: detection is read-only (`find` for `.env*`, 2 levels, skipping node_modules/.git/dist and templates/backups) and only proposes; the user confirms the label and path; raspi then edits `~/.raspi/hosts.yaml` through `yaml.safe_dump` with a `.bak` copy and validation before writing.
+- Why: the developer asked to declare env files from the app instead of editing YAML; detection found a file we had missed (`web-game/client/.env`).
+- Alternatives rejected: fully automatic declaration (the app cannot know which file a project really loads, e.g. web-game forces `server/.env` in code); a separate settings file (two sources of truth).
+- Consequences: comments in hosts.yaml are lost on the first edit (backup kept); detection says where `.env*` files are, not which one the code loads.
+
+## 2026-10-17 — An app can have several env files (`env_files` with labels)
+- Decision: `AppRef.env_files` is a list of `(label, path)`; `env_file: path` stays as a shortcut for one file labelled `default`. `web-game` has `server` (`server/.env`, read by the Node server) and `client` (root `.env`, `VITE_CLIENT_ID`, apparently for the Vite client build). Local copy file names: `<host>.<app>.env` for `default` (unchanged), `<host>.<app>.<label>.env` otherwise. Late read results for a file the user already switched away from are ignored.
+- Why: the developer asked to manage the root `.env` of `web-game` too; the two files have different readers and must not be mixed up.
+- Consequences: "Push and restart" restarts the service whatever the file; for build-time files (client) a restart does nothing useful, the client must be rebuilt (not handled yet).
+
+## 2026-10-17 — Environment editing: per-app `env_file`, PC copy + push, values never logged
+- Decision: each app declares the env file it reads (`env_file` in `hosts.yaml`, user-writable path only). The GUI edits a local copy (`~/.raspi/env/<host>.<app>.env`, outside git), compares it with the Pi file read on open, and pushes it atomically (temp file in the same folder, `umask 077`, `chmod 600`, `mv`, one `.raspi-bak` backup). Content travels base64-encoded on ssh stdin. Values are masked by default; messages, tooltips, labels and confirmations only ever contain variable names or counts.
+- Why: apps today read a `.env` in their folder (dotenv), so writing that file needs no unit change and no sudo; keeps adoption non-breaking. Format kept simple (raw when safe, double-quoted otherwise) so both dotenv and systemd read it the same way; ` #` inside unquoted values is flagged because dotenv and systemd disagree on it.
+- Alternatives rejected: `EnvironmentFile=` in raspi-generated units now (needs unit regeneration, planned later); sops/encrypted store (out of scope in T1); editing through sudo/system paths (rejected paths: /etc, /usr, /var...).
+- Consequences: the `.raspi-bak` files hold the previous secrets (mode 600); the local copies on the PC are plain text (backup is the developer's job); a push never restarts the app unless "Push and restart" is chosen.
+
 ## 2026-10-17 — Primary UI becomes a native PySide6 (Qt) app; web dashboard kept as secondary
 - Decision: `raspi gui` (shortcut "raspi" → `.venv\Scripts\pythonw.exe -m raspi.gui`) is the main interface: live table refreshed every 10 s, SSH in a thread pool (one job per host, so a slow Pi never blocks the others), confirmation dialogs for stop/restart, logs dock, light/dark following Windows. Package `PySide6-Essentials` 6.12.0 (resolved by uv 2026-10-17; Qt widgets only, ~80 MB, LGPL). The FastAPI/Jinja dashboard (`raspi web`) stays working but is no longer where new UI is built.
 - Why: the developer found the web dashboard not reactive enough ("pas hyper fan de l'interface web"); native Qt gives instant feedback and background updates without page reloads. Services layer was already UI-agnostic, so the GUI reuses `collect_host`, `run_action`, `read_logs`.

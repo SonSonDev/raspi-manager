@@ -88,6 +88,15 @@ def stylesheet(t: Tokens) -> str:
     QToolButton#primary:disabled {{ background: {t.bg}; color: {t.muted}; border-color: {t.rule}; }}
     QToolButton#danger {{ color: {t.err}; }}
     QToolButton#danger:disabled {{ color: {t.muted}; }}
+    QPushButton {{ border: 1px solid {t.rule}; border-radius: 2px; padding: 4px 12px; min-height: 22px; background: {t.bg}; color: {t.ink}; }}
+    QPushButton:hover {{ border-color: {t.accent}; }}
+    QPushButton:focus {{ border: 2px solid {t.accent}; }}
+    QPushButton:disabled {{ color: {t.muted}; }}
+    QCheckBox::indicator {{ width: 14px; height: 14px; border: 1px solid {t.muted}; border-radius: 2px; background: {t.bg}; }}
+    QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent}; }}
+    QCheckBox:focus {{ outline: 0; }}
+    QCheckBox::indicator:focus {{ border: 2px solid {t.accent}; }}
+    QLineEdit {{ border: 1px solid {t.accent}; padding: 2px 6px; background: {t.bg}; color: {t.ink}; }}
     QTableView {{ border: 0; gridline-color: {t.rule}; selection-background-color: {t.selected}; selection-color: {t.ink}; alternate-background-color: {t.bg}; }}
     QTableView::item {{ padding: 0 8px; border-bottom: 1px solid {t.rule}; }}
     QTableView::item:hover {{ background: {t.row_alt}; }}

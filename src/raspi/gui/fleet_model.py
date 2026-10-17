@@ -50,6 +50,11 @@ class FleetModel(QAbstractTableModel):
         self._tokens = tokens
         self._changed()
 
+    def set_hosts(self, hosts: list[Host]) -> None:
+        """New configuration (e.g. an env file was declared); live results are kept."""
+        self._hosts = hosts
+        self._update_rows()
+
     def set_host_status(self, hs: HostStatus) -> None:
         self._results[hs.host.name] = hs
         self._update_rows()

@@ -8,6 +8,7 @@ from PySide6.QtCore import QItemSelectionModel, Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QDialog,
     QDockWidget,
     QLabel,
     QMainWindow,
@@ -20,7 +21,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from raspi.config.loader import ConfigError, load_hosts
+from raspi.config.writer import add_env_file
 from raspi.core.models import Host, HostStatus
+from raspi.gui.add_env_dialog import AddEnvFileDialog
+from raspi.gui.env_dialog import EnvDialog
 from raspi.gui.fleet_model import FleetModel, Row
 from raspi.gui.theme import Tokens
 from raspi.gui.workers import submit
@@ -126,7 +131,14 @@ class MainWindow(QMainWindow):
         )
         self.btn_stop = self._button("Stop", lambda: self.act("stop"), "", "danger")
         self.btn_logs = self._button("Logs", self.show_logs, "Ctrl+L")
-        for b in (self.btn_restart, self.btn_start, self.btn_stop, self.btn_logs):
+        self.btn_env = self._button("Environment…", self.edit_env, "Ctrl+E")
+        for b in (
+            self.btn_restart,
+            self.btn_start,
+            self.btn_stop,
+            self.btn_logs,
+            self.btn_env,
+        ):
             bar.addWidget(b)
         bar.addSeparator()
         bar.addWidget(self.btn_refresh)
@@ -173,6 +185,13 @@ class MainWindow(QMainWindow):
         self.btn_stop.setEnabled(state == "running")
         self.btn_start.setEnabled(state in ("stopped", "failed", "unknown"))
         self.btn_logs.setEnabled(bool(row))
+        self.btn_env.setEnabled(bool(row and row.app))
+        declared = bool(row and row.app and row.app.env_files)
+        self.btn_env.setToolTip(
+            "Environment variables (Ctrl+E)"
+            if declared
+            else "Declare the environment file of this app (Ctrl+E)"
+        )
 
     # --- refresh ---------------------------------------------------------------
     @Slot()
@@ -276,6 +295,46 @@ class MainWindow(QMainWindow):
             self._on_status,
             lambda msg: self._on_status_failed(host_name, msg),
         )
+
+    # --- environment ------------------------------------------------------------
+    def edit_env(self) -> None:
+        row = self.selected()
+        if not row or not row.app:
+            return
+        key, app = row.key, row.app
+        if not app.env_files:  # nothing declared yet: start by declaring a file
+            dialog = AddEnvFileDialog(
+                row.host, app, self._transport, set(), set(), self
+            )
+            if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
+                return
+            try:
+                add_env_file(row.host.name, app.name, *dialog.result_value)
+            except ConfigError as exc:
+                QMessageBox.warning(self, "raspi", str(exc))
+                return
+            if not self.reload_config():
+                return
+            self.select_key(key)
+            row = self.selected()
+            if not row or not row.app or not row.app.env_files:
+                return
+        EnvDialog(row.host, row.app, self._transport, self).exec()
+        self.reload_config()  # the dialog may have declared or forgotten files
+        self.select_key(key)
+        self._update_buttons()
+        self._refresh_host(key[0])
+
+    def reload_config(self) -> bool:
+        """Re-read hosts.yaml (edited from the app) and update the table."""
+        try:
+            hosts = load_hosts()
+        except ConfigError as exc:
+            QMessageBox.warning(self, "raspi", str(exc))
+            return False
+        self._hosts = {h.name: h for h in hosts}
+        self.model.set_hosts(hosts)
+        return True
 
     # --- logs ---------------------------------------------------------------
     def show_logs(self) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import re
 import shlex
 
@@ -77,6 +78,69 @@ def build_logs_script(unit: str, lines: int) -> str:
     """Read-only: last `lines` journal entries of the unit."""
     n = max(1, min(int(lines), 1000))
     return f"journalctl -u {shlex.quote(unit)} -n {n} --no-pager -o short-iso 2>&1\n"
+
+
+ENV_MISSING = "@@MISSING"
+ENV_EXISTS = "@@EXISTS"
+
+
+def build_env_read_script(path: str) -> str:
+    """Read-only: print the env file (first line says whether it exists)."""
+    p = shlex.quote(path)
+    return (
+        f"if [ -f {p} ]; then echo {ENV_EXISTS}; cat {p}; else echo {ENV_MISSING}; fi\n"
+    )
+
+
+def parse_env_read(output: str) -> str | None:
+    """File content, or None when the file does not exist."""
+    first, _, rest = output.partition("\n")
+    return rest if first.strip() == ENV_EXISTS else None
+
+
+_TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".raspi-bak", ".bak")
+
+
+def build_env_detect_script(folder: str) -> str:
+    """Read-only: list `.env*` files up to two levels below the app folder."""
+    d = shlex.quote(folder)
+    return (
+        f'cd {d} 2>/dev/null || {{ echo "@@NODIR"; exit 0; }}\n'
+        "find . -maxdepth 2 \\( -name node_modules -o -name .git -o -name dist \\) -prune "
+        "-o -type f -name '.env*' -print 2>/dev/null\n"
+    )
+
+
+def parse_env_detect(folder: str, output: str) -> list[str] | None:
+    """Absolute paths of candidate env files; None when the folder does not exist."""
+    if output.strip() == "@@NODIR":
+        return None
+    found = []
+    for raw in output.splitlines():
+        rel = raw.strip()
+        if not rel.startswith("./") or rel.endswith(_TEMPLATE_SUFFIXES):
+            continue
+        found.append(folder.rstrip("/") + rel[1:])
+    return sorted(found)
+
+
+def build_env_push_script(path: str, content: str) -> str:
+    """Atomically replace an env file (mode 600), keeping one backup. Content travels as base64."""
+    p = shlex.quote(path)
+    b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    return (
+        "set -e\n"
+        "umask 077\n"
+        f"target={p}\n"
+        'dir=$(dirname "$target")\n'
+        '[ -d "$dir" ] || { echo "No such directory: $dir" >&2; exit 3; }\n'
+        'tmp=$(mktemp "$dir/.raspi-env.XXXXXX")\n'
+        f'printf %s {shlex.quote(b64)} | base64 -d > "$tmp"\n'
+        '[ ! -e "$target" ] || cp -p "$target" "$target.raspi-bak"\n'
+        'chmod 600 "$tmp"\n'
+        'mv "$tmp" "$target"\n'
+        'echo "written: $(wc -l < "$target") lines"\n'
+    )
 
 
 def parse_status(output: str, apps: tuple[AppRef, ...]) -> list[AppStatus]:

@@ -23,7 +23,13 @@ raspi.vbs                                    # double-click launcher (no console
 python -m uv run raspi gui                   # or from a terminal, or the Desktop shortcut
 powershell -File scripts\install-shortcut.ps1   # creates the "raspi" Desktop shortcut
 ```
-Live table of your apps (refreshed every 10 s), Restart / Start / Stop with confirmation, Logs panel, light/dark following Windows.
+Live table of your apps (refreshed every 10 s), Restart / Start / Stop with confirmation, Logs panel, light/dark following Windows, and an **Environment…** editor (Ctrl+E) for each app that has an `env_file` in `~/.raspi/hosts.yaml`: masked values, import from the Pi, save locally, push (optionally restarting the app).
+
+You do not have to edit the YAML for env files: with an app selected, **Environment…** offers to detect its `.env*` files (read-only) and declare them; **Add file…** / **Forget file** inside the window manage them later (raspi then rewrites `hosts.yaml`, keeping a `.bak` copy). Example `~/.raspi/hosts.yaml` entries (one env file, or several with labels):
+```yaml
+- {name: example-bot, unit: example-bot.service, path: /home/pi/dev/Example-Bot, env_file: /home/pi/dev/Example-Bot/.env}
+- {name: web-game, unit: web-game.service, env_files: [{label: server, path: /home/pi/dev/web-game/server/.env}, {label: client, path: /home/pi/dev/web-game/.env}]}
+```
 
 ## Windows window for the web dashboard (secondary)
 `scripts\raspi-gui.ps1` starts the server in the background and opens the dashboard in its own Edge window (no address bar); closing the window stops the server. `scripts\raspi-gui.ps1 -InstallShortcut` puts a "raspi" shortcut on the Desktop. Server logs: `%LOCALAPPDATA%\raspi\server.log`.

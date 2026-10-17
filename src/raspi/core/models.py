@@ -7,10 +7,19 @@ from datetime import datetime
 
 
 @dataclass(frozen=True)
+class EnvFile:
+    label: str  # "default" for the common single-file case
+    path: str  # absolute, user-writable path on the Pi
+
+
+@dataclass(frozen=True)
 class AppRef:
     name: str
     unit: str
     path: str | None = None  # git working copy on the Pi, if the app has one
+    env_files: tuple[
+        EnvFile, ...
+    ] = ()  # environment files the app (or its build) reads
 
 
 @dataclass(frozen=True)

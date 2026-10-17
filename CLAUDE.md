@@ -40,6 +40,7 @@
 
 ## Data safety & security
 - Never commit secrets: `~/.raspi/` (env files, Cloudflare API token, tunnel tokens) lives outside the repo; `.gitignore` guards stray `.env`/tokens.
+- Environment values are secrets: never print, log, put in tooltips/labels/exceptions or tests' failure messages; only variable names and counts. When checking real env files, print key names only.
 - Remote env files `chmod 600`; deploy keys read-only, one per repo; SSH host keys verified; no password auth.
 - Dashboard binds `127.0.0.1` only; no auth in T1 — do not expose it.
 
