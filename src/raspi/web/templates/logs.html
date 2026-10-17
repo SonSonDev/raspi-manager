@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}logs {{ app.name }} - raspi{% endblock %}
+{% block headerlink %}<a href="/apps/{{ host.name }}/{{ app.name }}/logs" aria-keyshortcuts="r">Refresh (r)</a>{% endblock %}
+{% block content %}
+  <h2>Logs: {{ app.name }}<small>{{ host.name }} · last {{ lines }} lines</small></h2>
+  {% if result.ok %}
+    <pre>{{ result.message }}</pre>
+  {% else %}
+    <p class="err" role="alert">✕ {{ result.message }}</p>
+  {% endif %}
+  <p><a class="btn" href="/">Back to fleet</a></p>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { location.reload(); }
+    if (e.key === "Escape") { location.href = "/"; }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} {{ app.name }} - raspi{% endblock %}
+{% block headerlink %}<a href="/">Back to fleet</a>{% endblock %}
+{% block content %}
+  <h2>{{ action|capitalize }} {{ app.name }}<small>{{ host.name }}</small></h2>
+  {% if result.ok %}
+    <p class="ok" role="status">✓ Done. The app is now <strong>{{ result.state }}</strong>.</p>
+  {% else %}
+    <p class="err" role="alert">✕ {{ action|capitalize }} failed: {{ result.message }}</p>
+  {% endif %}
+  <p><a class="btn primary" href="/">Back to fleet</a> <a class="btn" href="/apps/{{ host.name }}/{{ app.name }}/logs">View logs</a></p>
+{% endblock %}

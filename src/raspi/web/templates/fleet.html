@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if error %}
+    <p class="err" role="alert">{{ error }}</p>
+  {% endif %}
+  {% for hs in statuses %}
+    <h2>{{ hs.host.name }}<small>{{ hs.host.user }}@{{ hs.host.address }}</small></h2>
+    <div class="checked">Last checked {{ hs.checked_at.strftime("%H:%M:%S") }}</div>
+    {% if not hs.reachable %}
+      <p class="err" role="alert">✕ unreachable: {{ hs.error }}</p>
+    {% elif not hs.apps %}
+      <p class="empty">No app configured for this host. Add apps to ~/.raspi/hosts.yaml.</p>
+    {% else %}
+      <table>
+        <thead><tr><th scope="col">State</th><th scope="col">App</th><th scope="col">Version</th><th scope="col" class="hide-sm">Since</th><th scope="col" class="hide-sm">Restarts</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+        <tbody>
+        {% for a in hs.apps %}
+          {% set base = "/apps/" ~ hs.host.name ~ "/" ~ a.name %}
+          <tr>
+            <td class="state s-{{ a.state }}">{{ glyph[a.state] }} {{ a.state }}</td>
+            <td>{{ a.name }}</td>
+            <td class="mono">{% if a.rev %}{{ a.rev }}{% if a.dirty %}<span title="{{ a.dirty }} uncommitted change(s)">*</span>{% endif %}{% else %}-{% endif %}</td>
+            <td class="mono hide-sm">{{ a.since or "-" }}</td>
+            <td class="mono hide-sm">{{ a.restarts }}</td>
+            <td class="actions">
+              {% if a.state == "running" %}
+                <a class="btn primary" href="{{ base }}/confirm/restart">Restart</a>
+                <a class="btn danger" href="{{ base }}/confirm/stop">Stop</a>
+              {% else %}
+                <form method="post" action="{{ base }}/start">
+                  <input type="hidden" name="token" value="{{ token }}">
+                  <button class="btn primary" type="submit">Start</button>
+                </form>
+              {% endif %}
+              <a class="btn" href="{{ base }}/logs">Logs</a>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { location.reload(); }
+  });
+</script>
+{% endblock %}

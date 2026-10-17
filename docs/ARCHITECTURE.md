@@ -1,5 +1,5 @@
 # Architecture — code map
-Updated whenever a structural element is added, moved or removed. Principles live in CLAUDE.md. Nothing is implemented yet: this is the planned layout.
+Updated whenever a structural element is added, moved or removed. Principles live in CLAUDE.md. Implemented so far (slices 1-2): `core/models.py`, `core/remote.py` (status/action/logs scripts + parsers; actions whitelisted to start/stop/restart), `config/loader.py`, `ssh/transport.py` (system `ssh` via subprocess), `services/status.py`, `services/actions.py` (`run_action` with dry-run, `read_logs`, `find_app`), `cli/main.py` (`status`, `start`, `stop`, `restart`, `logs`, `web`), `web/app.py` (token + Host-header check) with templates `base`, `fleet`, `confirm`, `result`, `logs`, tests `test_status.py` and `test_actions.py`. Native UI (slice 3): `gui/theme.py` (tokens → QSS), `gui/workers.py` (`submit`: QRunnable jobs, results delivered by queued signals), `gui/fleet_model.py` (QAbstractTableModel, one row per configured app, pending/unreachable/checking states), `gui/main_window.py` (toolbar, table, logs dock, 10 s auto-refresh, one refresh job per host), `gui/app.py` (`raspi gui`, follows Windows light/dark), `tests/test_gui.py` (offscreen). The rest below is planned.
 
 ## Layout
 ```

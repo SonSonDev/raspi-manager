@@ -7,7 +7,7 @@
 - Tier: **T1** personal tool (see DECISIONS.md).
 
 ## Stack (chosen 2026-10-17 — re-check versions online before pinning or upgrading)
-- Python managed with `uv`; **Typer** (CLI), **Fabric/Paramiko** (SSH), **FastAPI + Jinja2 + HTMX** (dashboard, server-rendered, `127.0.0.1` only), **PyYAML**, **httpx** (Cloudflare API), **pytest**, **ruff**. Versions NOT yet pinned: verify on PyPI when scaffolding.
+- Python managed with `uv`; **Typer** (CLI), system `ssh` via `subprocess` (SSH, see DECISIONS), **FastAPI + Jinja2 + HTMX** (dashboard, server-rendered, `127.0.0.1` only), **PyYAML**, **httpx** (Cloudflare API), **pytest**, **ruff**. Resolved by `uv` from PyPI on 2026-10-17 (locked in `uv.lock`): Python 3.12, typer 0.27.3, fastapi 0.143.3, uvicorn 0.54.0, pyyaml 6.0.3, python-multipart 0.0.32, pytest 9.1.1, ruff 0.17.1, uv 0.13.1 (installed with `pip --user`). `httpx` is a dev dependency for now (test client); HTMX not added yet. **Native UI: PySide6-Essentials 6.12.0 (Qt widgets, LGPL)**; GUI tests run with `QT_QPA_PLATFORM=offscreen` (no fonts/stylesheet there, so use a real-platform capture to judge looks).
 - On the Pi: system-level systemd units (run as the login user, passwordless sudo), `git`, `uv`/Python, Node (per app), `cloudflared`.
 - **Library policy**: anything not listed needs approval. Before adding: latest stable version, maintenance, publisher, licence; say what was added and why; log in DECISIONS.md.
 - **Version freshness**: when touching dependencies and at each milestone, compare with current stable releases. Never claim "verified" without checking online that session.
@@ -30,6 +30,7 @@
 - Files < 400 lines; no commented-out code; comments explain *why*.
 
 ## UX & design rules
+- Main UI is the Qt app in `src/raspi/gui/` (tokens in `gui/theme.py`); never block the GUI thread: SSH only through `gui/workers.submit`.
 - Follow `docs/DESIGN.md` ("Ops Ledger"): dense, sober, status = glyph + word (never colour alone), light/dark auto, English UI, WCAG AA (contrast to be measured), keyboard shortcuts.
 
 ## Quality gates (a task is not done until these pass; say which were run)
@@ -55,4 +56,9 @@
 - Milestone check (`/project-checkpoint`) each release or ~20 commits.
 
 ## Commands (to be confirmed at scaffold time)
-- `uv sync` · `uv run pytest` · `uv run ruff check .` · `uv run raspi --help` · `uv run raspi web`
+`uv` is not on PATH: use `python -m uv ...`.
+- `python -m uv sync` · `python -m uv run pytest` · `python -m uv run ruff check .` · `python -m uv run ruff format .`
+- `python -m uv run raspi gui` (native app; Desktop shortcut via `scripts/install-shortcut.ps1`)
+- `python -m uv run raspi status` (read-only live state) · `raspi logs <app> -n 50` (read-only) · `raspi start|stop|restart <app> [--dry-run] [--yes]` (**changes a Pi: only the developer runs these, never Claude**) · `python -m uv run raspi web` (http://127.0.0.1:8765)
+- Every `subprocess` call from the GUI must pass `creationflags=CREATE_NO_WINDOW` (done in `ssh/transport.py`, covered by `tests/test_transport.py`), otherwise Windows flashes a console window per call.
+- Config: `~/.raspi/hosts.yaml` (hosts and their apps). Subprocess input to ssh must be bytes (Windows would otherwise send CRLF to `sh`).

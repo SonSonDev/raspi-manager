@@ -2,7 +2,13 @@
 
 Manage personal apps on several Raspberry Pi from a Windows PC, over SSH, with no agent on the Pi.
 
-> **Status: design phase.** Only the documentation and the SSH bootstrap script exist. The `raspi` CLI and dashboard are not implemented yet (see [SPEC](docs/SPEC.md) for planned features and their status).
+> **Status: early.** Status, logs and start/stop/restart of apps on your Pi work in the CLI and in a local dashboard (`raspi web`); actions are only tested with a fake transport so far. Deploy, env vars and routing are not implemented yet (see [SPEC](docs/SPEC.md) for each feature's status).
+
+```powershell
+python -m uv sync
+python -m uv run raspi status      # needs ~/.raspi/hosts.yaml and a working ssh-agent key
+python -m uv run raspi web         # http://127.0.0.1:8765
+```
 
 ## What it will do
 - Deploy apps (Python, Node) from private GitHub repos to one or more Pi, pinned to a tag, branch or commit, with rollback.
@@ -10,6 +16,17 @@ Manage personal apps on several Raspberry Pi from a Windows PC, over SSH, with n
 - Manage per-app environment variables (kept on the PC, outside git, pushed as `chmod 600` files).
 - Route web apps to the internet through a Cloudflare Tunnel managed via the Cloudflare API (hostname → local port).
 - Offer a CLI and a small local web dashboard (`127.0.0.1` only) showing every Pi and app at a glance.
+
+## Native app (main interface)
+```powershell
+raspi.vbs                                    # double-click launcher (no console at all; installs dependencies on first run)
+python -m uv run raspi gui                   # or from a terminal, or the Desktop shortcut
+powershell -File scripts\install-shortcut.ps1   # creates the "raspi" Desktop shortcut
+```
+Live table of your apps (refreshed every 10 s), Restart / Start / Stop with confirmation, Logs panel, light/dark following Windows.
+
+## Windows window for the web dashboard (secondary)
+`scripts\raspi-gui.ps1` starts the server in the background and opens the dashboard in its own Edge window (no address bar); closing the window stops the server. `scripts\raspi-gui.ps1 -InstallShortcut` puts a "raspi" shortcut on the Desktop. Server logs: `%LOCALAPPDATA%\raspi\server.log`.
 
 ## Available today: prepare a Pi for SSH key access
 ```powershell
