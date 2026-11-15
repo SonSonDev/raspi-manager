@@ -76,7 +76,10 @@ def test_low_disk_and_no_sudo_make_the_pi_unfit():
 
 def test_provision_script_only_accepts_whitelisted_packages():
     script = build_provision_script(["git"], True)
-    assert "apt-get install -y git" in script and 'mkdir -p "$HOME/apps"' in script
+    assert (
+        "apt-get install -y -o DPkg::Lock::Timeout=600 git" in script
+        and 'mkdir -p "$HOME/apps"' in script
+    )
     with pytest.raises(ValueError):
         build_provision_script(["git; rm -rf /"], False)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import shlex
 from dataclasses import dataclass
 
-from raspi.core.tools import ffmpeg_short
+from raspi.core.tools import APT_WAIT, ffmpeg_short
 
 APPS_DIR = "apps"  # relative to the login user's home
 MIN_DISK_MB = 1024
@@ -176,8 +176,8 @@ def build_provision_script(packages: list[str], make_apps_dir: bool) -> str:
     if packages:
         lines += [
             'sudo -n true 2>/dev/null || { echo "passwordless sudo is required" >&2; exit 3; }',
-            "sudo apt-get update",
-            "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "
+            f"sudo apt-get {APT_WAIT} update",
+            f"sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y {APT_WAIT} "
             + " ".join(shlex.quote(p) for p in packages),
         ]
     if make_apps_dir:

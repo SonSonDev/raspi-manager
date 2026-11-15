@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 from raspi import APP_NAME
 from raspi.core.models import Host
+from raspi.gui import busy
 from raspi.gui.confirm import confirm_change
 from raspi.gui.tools_dialog import ToolsDialog
 from raspi.gui.workers import submit
@@ -31,6 +32,9 @@ class ToolsMixin:
         selected = self.selected_host()
         host = self._hosts.get(selected.name) if selected else None
         if host is None:
+            return
+        if busy.running(host.name):
+            QMessageBox.information(self, APP_NAME, busy.MESSAGE.format(host=host.name))
             return
         self.status_label.setText(f"Looking at the tools on {host.name}…")
         submit(
@@ -73,16 +77,20 @@ class ToolsMixin:
         ):
             self.status_label.setText("Cancelled, nothing was changed.")
             return
+        if not busy.begin(host.name):
+            QMessageBox.information(self, APP_NAME, busy.MESSAGE.format(host=host.name))
+            return
         self.status_label.setText("Installing… (this can take a few minutes)")
         submit(
             lambda: (host, install_tools(host, self._transport, plan)),
             self._on_tools_installed,
-            self._tools_failed,
+            lambda msg, h=host.name: (busy.end(h), self._tools_failed(msg)),
         )
 
     @Slot(object)
     def _on_tools_installed(self, payload: tuple[Host, ToolsResult]) -> None:
         host, result = payload
+        busy.end(host.name)
         self.status_label.setText(("✓ " if result.ok else "✕ ") + result.messages[0])
         box = QMessageBox.information if result.ok else QMessageBox.critical
         box(self, APP_NAME, "\n".join(result.messages))

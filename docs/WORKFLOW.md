@@ -46,6 +46,9 @@ get `Start` or `✓ Ready`. The row's tooltip gives the reason. “Routed” is 
 ## 3. Rules that make each step safe (apply to every step, present and future)
 1. **One entry of data.** A value (app name, repo, commands, folder) is typed once and stored in `apps.yaml`; later steps
    never ask for it again. Forms for an existing app open pre-filled.
+2b. **One change at a time per Pi** (✅). While an install (packages, Node, tools) runs on a Pi, a second one is refused with a
+   message instead of failing on the Pi's lock; every `apt-get` call also waits for another apt run (a first install, the daily
+   timers) with `-o DPkg::Lock::Timeout=600` instead of failing.
 2. **Plan → confirm → apply → read back.** Read-only plan first; confirmation shows the exact script; after applying, the
    result is re-read from the Pi and the table refreshed. `--dry-run` shows the plan and script without running anything.
 3. **Idempotent.** Running a step twice is safe: it does nothing, or updates, never duplicates or overwrites something

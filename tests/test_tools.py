@@ -104,7 +104,8 @@ def test_the_download_is_checked_then_run_before_it_replaces_anything():
 
 def test_only_whitelisted_apt_packages_and_nothing_to_do_means_no_script_changes():
     ffmpeg_only = build_tools_script(True, None, [])
-    assert "apt-get install -y ffmpeg" in ffmpeg_only and "curl" not in ffmpeg_only
+    assert "apt-get install -y -o DPkg::Lock::Timeout=600 ffmpeg" in ffmpeg_only
+    assert "curl" not in ffmpeg_only
     with pytest.raises(ToolError):
         build_tools_script(False, None, ["ffmpeg; rm -rf /"])
 
@@ -165,7 +166,7 @@ def test_plan_for_a_bare_pi_installs_both_and_changes_nothing_yet():
     assert plan.steps[0].startswith("Install with apt: ffmpeg")
     assert "yt-dlp_linux_aarch64" in plan.steps[1]
     assert (
-        "apt-get install -y ffmpeg" in plan.script and len(pi.scripts) == 1
+        "DPkg::Lock::Timeout=600 ffmpeg" in plan.script and len(pi.scripts) == 1
     )  # only the probe ran
 
 

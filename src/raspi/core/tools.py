@@ -16,6 +16,8 @@ FFMPEG, YTDLP = "ffmpeg", "yt-dlp"
 TOOLS = (FFMPEG, YTDLP)
 RELEASE_URL = "https://github.com/yt-dlp/yt-dlp/releases/download"
 BIN = "/usr/local/bin/yt-dlp"
+# another apt run (a first install, the daily timers) holds the dpkg lock: wait for it, do not fail
+APT_WAIT = "-o DPkg::Lock::Timeout=600"
 BUNDLE_DIR = "/opt/yt-dlp"
 # `uname -m` -> (release file, shape): a single executable, or a zipped folder (PyInstaller onedir)
 ASSETS = {
@@ -152,8 +154,8 @@ def build_tools_script(
     ]
     if packages:
         lines += [
-            "sudo apt-get update",
-            "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "
+            f"sudo apt-get {APT_WAIT} update",
+            f"sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y {APT_WAIT} "
             + " ".join(shlex.quote(p) for p in packages),
         ]
     if want_ffmpeg:

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QInputDialog, QMessageBox
 from raspi import APP_NAME
 from raspi.core.models import Host
 from raspi.core.runtime import NODE_LINES, RuntimeError_
+from raspi.gui import busy
 from raspi.gui.workers import submit
 from raspi.services.provision import DoctorReport, ProvisionResult, doctor, provision
 from raspi.services.runtime import install_node, plan_node
@@ -77,6 +78,8 @@ class ProvisionMixin:
             self._install_node(host)
 
     def _install_node(self, host: Host) -> None:
+        if self._refuse_if_busy(host):
+            return
         major, ok = QInputDialog.getItem(
             self, APP_NAME, "Node version (LTS line):", NODE_LINES, 0, False
         )
@@ -103,22 +106,28 @@ class ProvisionMixin:
         if box.clickedButton() is not confirm:
             self.status_label.setText("Cancelled, nothing was changed.")
             return
+        if not busy.begin(host.name):
+            self._refuse_if_busy(host)
+            return
         self.status_label.setText(f"Installing Node {major} on {host.name}…")
         submit(
             lambda: (host, install_node(host, self._transport, major)),
             self._on_node_installed,
-            self._pi_check_failed,
+            lambda msg, h=host.name: self._busy_failed(h, msg),
         )
 
     @Slot(object)
     def _on_node_installed(self, payload) -> None:
         host, (ok, message, _) = payload
+        busy.end(host.name)
         self.status_label.setText(("✓ " if ok else "✕ ") + message)
         if not ok:
             QMessageBox.critical(self, APP_NAME, message)
         self._refresh_host(host.name)
 
     def _install_missing(self, host: Host, report: DoctorReport) -> None:
+        if self._refuse_if_busy(host):
+            return
         preview = provision(host, self._transport, dry_run=True)
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
@@ -136,22 +145,37 @@ class ProvisionMixin:
         if box.clickedButton() is not confirm:
             self.status_label.setText("Cancelled, nothing was changed.")
             return
+        if not busy.begin(host.name):
+            self._refuse_if_busy(host)
+            return
         self.status_label.setText(
             f"Installing on {host.name}… (this can take a few minutes)"
         )
         submit(
             lambda: (host, provision(host, self._transport)),
             self._on_provisioned,
-            self._pi_check_failed,
+            lambda msg, h=host.name: self._busy_failed(h, msg),
         )
 
     @Slot(object)
     def _on_provisioned(self, payload: tuple[Host, ProvisionResult]) -> None:
         host, result = payload
+        busy.end(host.name)
         self.status_label.setText(("✓ " if result.ok else "✕ ") + result.message)
         if not result.ok:
             QMessageBox.critical(self, APP_NAME, result.message)
         self._refresh_host(host.name)
+
+    def _refuse_if_busy(self, host: Host) -> bool:
+        """True (after saying why) when a change is already running on that Pi."""
+        if not busy.running(host.name):
+            return False
+        QMessageBox.information(self, APP_NAME, busy.MESSAGE.format(host=host.name))
+        return True
+
+    def _busy_failed(self, host_name: str, message: str) -> None:
+        busy.end(host_name)
+        self._pi_check_failed(message)
 
     def _pi_check_failed(self, message: str) -> None:
         self.status_label.setText("Pi check failed")
