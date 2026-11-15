@@ -12,10 +12,12 @@ from raspi.core.deploykey import clone_url, key_steps
 from raspi.core.install import InstallError
 from raspi.core.models import Host
 from raspi.core.runtime import RuntimeError_
+from raspi.core.unit import UnitError
 from raspi.services.deploykey import ensure_key, fetch_github_keys, verify_repo
 from raspi.services.install import install_app, plan_install
 from raspi.services.provision import doctor, provision
 from raspi.services.runtime import install_node, plan_node
+from raspi.services.unit import install_unit, plan_unit
 from raspi.ssh.transport import SshTransport
 
 LiveHost = Callable[[str], tuple[Host, Host]]
@@ -181,6 +183,41 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
         if not yes:
             typer.confirm(f"Apply these changes on {name}?", abort=True)
         result = install_app(live, transport, plan)
+        if not result.ok:
+            raise _fail(f"✕ {result.message}")
+        typer.secho(f"✓ {result.message}", fg="green")
+
+    @host_app.command("install-unit")
+    def host_install_unit(
+        name: str,
+        app_name: Annotated[str, typer.Argument(metavar="APP")],
+        dry_run: bool = typer.Option(
+            False, "--dry-run", help="Show it, change nothing"
+        ),
+        yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+    ) -> None:
+        """Create and enable the systemd unit of APP from its `run` command (not started)."""
+        _, live = live_host(name)
+        declared = next((a for a in live.apps if a.name == app_name), None)
+        if declared is None:
+            raise _fail(f"{app_name} is not in the inventory of {name}")
+        transport = SshTransport()
+        try:
+            plan = plan_unit(live, transport, declared)
+        except UnitError as exc:
+            raise _fail(str(exc)) from exc
+        for step in plan.steps:
+            typer.echo(f"  - {step}")
+        for warning in plan.warnings:
+            typer.secho(f"  ! {warning}", fg="yellow")
+        if dry_run:
+            typer.echo("")
+            typer.echo(f"Unit file:{chr(10)}{plan.text}")
+            typer.echo("Dry run: nothing was changed.")
+            return
+        if not yes:
+            typer.confirm(f"Apply these changes on {name}?", abort=True)
+        result = install_unit(live, transport, plan)
         if not result.ok:
             raise _fail(f"✕ {result.message}")
         typer.secho(f"✓ {result.message}", fg="green")
