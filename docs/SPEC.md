@@ -1,93 +1,160 @@
 # Product specification
-Source of truth for scope and behaviour. Status: `planned` · `in progress` · `done` · `dropped`.
+Source of truth for scope and behaviour. The *order* of the steps lives in `WORKFLOW.md`. Status: `done` · `partial` ·
+`planned` · `dropped`. “Fake Pi” = tested only with a simulated Pi/Cloudflare; the first real run is up to the developer
+(see the real-Pi log in WORKFLOW.md).
 
 ## Overview
-`raspi-manager` is a native Windows app, a CLI and a local web dashboard (`raspi-manager web`, `127.0.0.1`) to manage apps on several Raspberry Pi over SSH. Config lives in `~/.raspi/` on the PC. The real state is always read from the Pi.
+`raspi-manager` is a native Windows app (Qt), a CLI and a secondary local web dashboard (`raspi web`, `127.0.0.1`) that
+manage apps on several Raspberry Pi over SSH. Config lives in `~/.raspi/` on the PC; each Pi keeps its own app inventory
+(`~/.raspi/apps.yaml`). Real state is always read from the Pi.
 
-**GUI parity rule (decided 2026-10-17):** everything needed to bring a project live must be doable from the dashboard without typing commands: add a Pi (including the first SSH key install), adopt or create an app, set env vars, deploy, route a hostname, start/stop/pause/restart, read logs. The CLI stays as the scriptable twin; both call the same services.
+**GUI parity rule:** everything needed to bring a project live is doable from the GUI without typing commands; the CLI is
+the scriptable twin and both call the same services.
 
 ## Out of scope
-Agent on the Pi, dashboard auth/remote exposure, sops/encrypted secrets, Docker, webhook/CI auto-deploy, metrics history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
+Agent on the Pi, dashboard auth or remote exposure, sops/encrypted secrets, Docker, webhook/CI auto-deploy, metrics
+history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 
 ## Interfaces
-- CLI: `raspi <group> <verb>`; all mutating commands support `--dry-run`; destructive ones ask confirmation (`--yes`).
-- Dashboard: landing page = all Pis × apps (status, version, URL, last checked); right drawer for logs / env / versions. See DESIGN.md.
+- CLI: `raspi <group> <verb>`; every mutating command has `--dry-run`; destructive ones ask (`--yes`).
+- GUI: one table (Pis × apps: status, version, last checked), a toolbar of actions, a logs dock. See DESIGN.md.
 
-## F1 — Host inventory & provisioning
-Status: `in progress` — done (2026-11-14): GUI “Add a Pi…” (Ctrl+N: name, address, user, validated like the loader) and `raspi host add NAME ADDRESS USER` write `~/.raspi/hosts.yaml`, creating the folder and file on first run (`.bak` copy and validation as for other edits; duplicate names and unsafe values refused). With no hosts file, or an empty one, the window opens normally with a how-to panel (terminal steps for the SSH key, an “Open setup guide” button that opens `docs/PI-SETUP.md`, source checkouts only); the CLI still reports the missing file and points to `host add`. Nothing is sent to the Pi: key access (and the host key trust) must already work and the table shows right after whether it does. Edit and remove: GUI “Edit Pi…” (Ctrl+Shift+E; address and user only, the name is locked) and “Remove Pi…” (confirmation lists the apps that will be forgotten; only hosts.yaml changes, `.bak` kept; the Pi, its apps and local env copies are untouched), CLI `raspi host ls|edit|rm` (`rm` asks unless `--yes`). Done (2026-11-15): “Check Pi…” (toolbar, reachable Pi) and `raspi host doctor NAME` read, without changing anything, the system, passwordless sudo, git, curl, uv, Node (also under nvm), cloudflared, `~/apps`, free disk (≥ 1 GB) and memory, and say how to fix each gap; “Install missing…” (after “Check Pi…”) and `raspi host provision NAME [--dry-run] [--yes]` then install only what is missing and installable: `git` and `curl` through apt (whitelist) and the `~/apps` folder, after a confirmation that shows the exact script. Tested with a fake Pi only; the first real run is up to the developer. Done (2026-11-15): Node through nvm: “Install Node…” (button of the “Check Pi…” window, when git and curl are present) and `raspi host install-node NAME [MAJOR=22] [--dry-run] [--yes]` download the nvm installer pinned to tag v0.41.0, check its SHA-256, run it as the login user (no sudo; nvm adds lines to the shell profile), then `nvm install MAJOR` and make it the default; the LTS lines offered are 22, 24, 26. Tested with a fake Pi only. Done (2026-11-15): “Deploy key…” (toolbar, reachable Pi: app name + optional `owner/name`) and `raspi host deploy-key NAME APP [--repo OWNER/NAME] [--dry-run] [--yes]` create, on the Pi, an ed25519 key `~/.ssh/raspi_deploy_<app>` (no passphrase) and the ssh alias `github-<app>` (only that key offered) in `~/.ssh/config`, add GitHub's host keys to `known_hosts` when github.com is not there (list read by the PC from `api.github.com/meta` over HTTPS, never trusted blindly on first connection), and show the public key to add on GitHub as a read-only deploy key; with a repository, `git ls-remote` then checks that GitHub accepts it (“Check again” after adding it); an existing key and settings are kept. Clone URL to use later: `git@github-<app>:owner/name.git`. Tested with a fake Pi only. Done (2026-11-15): app entries of `apps.yaml` accept `repo` (owner/name), `build` and `run` (one-line commands, validated; `run` is for the unit to come); `raspi host install-app NAME APP --repo OWNER/NAME [--build CMD] [--run CMD] [--path DIR] [--dry-run] [--yes]` then clones the repo through the app's deploy key into `~/apps/<app>` (or `--path`), runs the build command there (nvm's default Node loaded when nvm is installed, no sudo) and adds the app to the Pi's `apps.yaml` (unit name `<app>.service`, not created yet). A read-only probe first requires the deploy key and at least 500 MB free; an existing git working copy is kept as it is (no pull, no checkout: that is the deploy step), a non-git folder is refused; the exact script is shown first (`--dry-run`). Tested with a fake Pi only. Done (2026-11-15): `raspi host install-unit NAME APP [--dry-run] [--yes]` creates and enables (does not start) the app's systemd unit `/etc/systemd/system/<app>.service`, marked `# managed by raspi-manager`: runs the app's `run` command through `/bin/sh -c "exec ..."` (systemd specifiers escaped) as the login user in its working copy, `Restart=on-failure`, `Environment=PATH` with nvm's Node first, one `EnvironmentFile=` per env file declared for the app (declare them first with “Environment…”). A read-only probe reports a missing Node, a missing env file and a unit that exists: one not made by raspi-manager is never overwritten, one of ours is replaced; passwordless sudo required; the unit text is shown first. Tested with a fake Pi only. Done (2026-11-15): GUI twins “Install app…” (toolbar, reachable Pi: form with name, repository, build command, run command, optional folder, validated like the loader; then the read-only check, a confirmation listing the steps with the exact script, and the install, which can take several minutes) and “Install unit…” (selected app that has a `run` command: confirmation with the steps, the warnings and the unit text). Not done: env push as part of the install, installing uv (method to decide, see DECISIONS 2026-11-15), `role`, the key-install wizard, adding apps from a repo (F7b/F10).
-- `raspi host add/ls/edit/rm`, entries in `~/.raspi/hosts.yaml` (name, address, user, role).
-- Prerequisite, done before `host add`: key access via `scripts/setup-pi-ssh.ps1` (see `docs/PI-SETUP.md`); `host doctor` re-checks the same things.
-- `raspi host doctor <host>`: checks SSH, passwordless sudo, git, curl, uv, Node, cloudflared, `~/apps`, disk space; says how to fix (done, see status above).
-- `raspi host provision <host>`: creates `~/apps`, installs git and curl (confirmed); `raspi host install-node` installs Node via nvm; uv not yet.
+## Status at a glance
+| Feature | Status |
+|---|---|
+| F1 Pis and provisioning | partial: add/edit/remove Pi, doctor, provision, Node, deploy key; uv, `role`, key wizard not done |
+| F2 App inventory | partial: Pi inventory, publish, adopt scan, declare env files, install app, install unit; remove/edit fields, `built`, `requires` not done |
+| F3 Deploy and versions | planned |
+| F4 Lifecycle and logs | partial |
+| F5 Environment variables | partial (GUI done, CLI `env` not done) |
+| F6 Cloudflare routing | partial (fake Cloudflare only) |
+| F7 Main UI | partial |
+| F7b Guided “New app” wizard | planned (decided 2026-11-15) |
+| F8 Fleet health | planned |
 
-## F2 — App definition
-Status: `in progress` — decided 2026-11-14: the app inventory lives on each Pi in `~/.raspi/apps.yaml` (`version: 1`, then `apps:` with `name`, `unit`, optional `path`, `env_file`/`env_files`, same fields as in hosts.yaml) and is the source of truth (see DECISIONS); the PC `hosts.yaml` keeps the Pis. Done (slice 1, read only): on every refresh the app reads that file from the Pi (CLI `status`, `start|stop|restart|logs` and the web dashboard too); missing file → the apps declared in `hosts.yaml` are used; invalid file → ignored, with the reason in the status bar. Done (slice 2): “Publish apps to Pi…” (toolbar, enabled when the selected Pi is reachable and its apps still come from `hosts.yaml`) and `raspi host publish NAME [--dry-run] [--yes]` write the apps declared in `hosts.yaml` to `~/.raspi/apps.yaml` on that Pi: read-only plan first, preview of the exact file (names and paths only), confirmation, atomic write (temp file + mv, mode 600, `apps.yaml.bak` if a file existed), then a read-back check; only for a Pi that has no `apps.yaml` yet (an existing one is the source of truth and is never replaced from the PC). Tested with a fake Pi and a dry run against the real `raspi`; the first real write is up to the developer. Done (slice 3, env files): when a Pi's apps come from its own `apps.yaml`, “Declare an environment file”, “Add file…” and “Forget file” write there instead of `hosts.yaml` (several files per app, each `{label, path}`): the change is applied on top of the file read from the Pi at that moment, written atomically with `apps.yaml.bak`, read back, and the dialog says where it is saved; the file on the Pi and local copies are never touched. A Pi without `apps.yaml` keeps using `hosts.yaml` as before. Done (slice 4, first part of the adopt scan, F7b): “Scan apps…” (toolbar, any reachable Pi) and `raspi host scan NAME` list, read-only, the admin-written services in `/etc/systemd/system` (real files, not aliases) run by the login user and not yet in the inventory, with state, git working copy (or folder) and command; units are read with `systemctl show`, since the files are not readable without sudo. The user ticks some and `raspi host adopt NAME APP... [--dry-run] [--yes]` / “Add selected…” append them to the Pi's `apps.yaml` (created from `hosts.yaml` when the Pi has none), after a confirmation listing them: atomic, `.bak`, read-back, applied on the file read just now; duplicate names or units are refused; the services are not touched. Not done: removing a whole app from the inventory, editing an app's fields, other scan sources (listening ports, `cloudflared` config, nvm/pyenv), CLI `raspi env ...`.
-- `~/.raspi/apps/<app>.yaml`: repo URL, runtime (`python` | `node`), install command, run command, target hosts, optional routes.
-- Deploy key generated per repo/host; `raspi app key <app>` prints the public key to add on GitHub.
+## F1 — Pis and provisioning
+- **Add / edit / remove a Pi** (done): GUI “Add a Pi…” (Ctrl+N), “Edit Pi…” (Ctrl+Shift+E; address and user, name locked),
+  “Remove Pi…” (lists the apps forgotten; only `hosts.yaml` changes, `.bak` kept); CLI `raspi host add|ls|edit|rm`.
+  Values are validated like the loader. No hosts file (or an empty one) shows a how-to panel with the SSH key steps and an
+  “Open setup guide” button (`docs/PI-SETUP.md`). Nothing is sent to the Pi: key access and host-key trust must already work.
+- **Check** (done, fake Pi): “Check Pi…” / `host doctor NAME`, read-only: system, passwordless sudo, git, curl, uv, Node
+  (also under nvm), cloudflared, `~/apps`, free disk (≥ 1 GB), memory; each gap says how to fix it.
+- **Provision** (done, fake Pi): “Install missing…” / `host provision NAME [--dry-run] [--yes]` installs only what is
+  missing and installable: `git`, `curl` through apt (fixed whitelist) and `~/apps`, after a confirmation showing the script.
+- **Node** (done, fake Pi): “Install Node…” (in the Check window) / `host install-node NAME [MAJOR=22]`: nvm pinned to
+  tag v0.41.0, installer SHA-256 checked on the Pi, no sudo (nvm edits the shell profile), then `nvm install MAJOR` as the
+  default. Lines offered: 22, 24, 26.
+- **Deploy key** (done, real Pi verified once): “Deploy key…” / `host deploy-key NAME APP [--repo OWNER/NAME]` creates
+  `~/.ssh/raspi_deploy_<app>` (ed25519, no passphrase) and the alias `github-<app>` in `~/.ssh/config`, adds GitHub's host
+  keys to `known_hosts` when github.com is absent (read by the PC from `api.github.com/meta` over HTTPS), shows the public
+  key to add as a read-only deploy key, and with `--repo` checks it with `git ls-remote` (“Check again”). Existing keys and
+  settings are kept.
+- Not done: installing uv (method open), `role`, a key-install wizard (the SSH key is a terminal step).
 
-## F3 — Deploy & versions
-Status: `planned`
-- `raspi deploy <app> [--host H] [--ref tag|branch|sha]`: fetch, checkout into `releases/<sha>`, install deps, switch `current`, restart. Keeps last N releases.
-- `raspi rollback <app>`; `raspi versions <app>` lists deployed vs. available refs.
-- Failed install leaves the running release untouched.
+## F2 — App inventory and install
+- **Inventory on the Pi** (done): `~/.raspi/apps.yaml` (`version: 1`, then `apps:`) is the source of truth; fields: `name`,
+  `unit`, `path`, `env_files` (label + path), `repo` (owner/name), `build`, `run` (one-line commands, ≤ 500 characters,
+  validated, shown in full before anything runs). Planned fields: `built: <rev>`, `previous: <rev>`, `requires:` (WORKFLOW §6).
+  Read on every refresh; a missing file falls back to the apps in `hosts.yaml`; an invalid file is ignored with the reason
+  in the status bar. Every write: applied on the file read just now, atomic (temp + mv, mode 600), `.bak` kept, read back.
+- **Publish** (done): “Publish apps to Pi…” / `host publish NAME` writes the `hosts.yaml` apps to a Pi that has no
+  `apps.yaml` (never replaces an existing one).
+- **Adopt scan** (done): “Scan apps…” / `host scan NAME` lists, read-only, services in `/etc/systemd/system` run by the login
+  user and not yet in the inventory (state, git folder, command; read with `systemctl show`); “Add selected…” /
+  `host adopt NAME APP...` adds the ticked ones. Services are not touched. Not done: other sources (ports, cloudflared
+  config, nvm/pyenv).
+- **Install app** (done, fake Pi + real read-only probe): “Install app…” / `host install-app NAME APP --repo OWNER/NAME
+  [--build CMD] [--run CMD] [--path DIR]`. Read-only probe (deploy key present, ≥ 500 MB free, folder state), exact script
+  shown, then `git clone` through the key alias into `~/apps/<app>` (or `--path`), the build command with nvm's default Node
+  (no sudo), and the entry added to the Pi's `apps.yaml` (unit `<app>.service`). An existing git working copy is kept as is;
+  a non-git folder is refused. Run again for a known app, it updates the entry (env files kept) and rebuilds: the GUI form
+  opens pre-filled as “Update an app”. The run command is required in the GUI.
+- **Install unit** (done, fake Pi): “Install unit…” / `host install-unit NAME APP`: writes and enables (does not start)
+  `/etc/systemd/system/<app>.service` marked `# managed by raspi-manager`: `run` through `/bin/sh -c "exec …"`, login user,
+  working copy, `Restart=on-failure`, nvm's Node first in `PATH`, one `EnvironmentFile=` per declared env file. A unit
+  without our marker is never overwritten. Needs passwordless sudo; reports a missing Node or env file.
+- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app, `built` marker,
+  `requires`, the “New app” wizard (F7b).
 
-## F4 — Lifecycle & logs
-Status: `in progress`
-- Done, CLI and dashboard: `status` (state glyph+word, git rev with `*` when dirty, since, restarts, per-host "last checked", unreachable host shown as error); `start` / `stop` / `restart` via `sudo -n systemctl` (CLI: `stop`/`restart` ask confirmation unless `--yes`, all support `--dry-run`; dashboard: Restart/Stop go through a confirmation page, Start is direct; result page shows the new state); `logs` (CLI `raspi logs <app> -n N`, dashboard logs page, read-only, max 1000 lines).
+## F3 — Deploy and versions
+Status: `planned`. Decided 2026-11-15 (WORKFLOW §6): `fetch`, fast-forward to a chosen ref (branch, tag or sha), build,
+restart; refused when the working copy has local changes; the previous revision is kept for rollback; no
+`releases/<sha>` layout. `raspi deploy|rollback|versions`, GUI “Update…”.
+
+## F4 — Lifecycle and logs
+- Done: `status` (state glyph + word, git rev with `*` when dirty, since, restarts, last checked, unreachable shown as an
+  error); `start|stop|restart` through `sudo -n systemctl` (CLI: stop/restart ask unless `--yes`; all have `--dry-run`; GUI:
+  stop/restart confirm, start is direct); `logs` (read-only, ≤ 1000 lines); 10 s auto-refresh, per-host jobs.
 - Dashboard mutations need a per-process token and a localhost Host header.
-- Not started: `pause`/`resume` (state `paused` not detectable yet), auto-refresh, `--host` picker UI, follow mode for logs.
-- Action code is tested with a fake transport only; no action has been run against a real Pi yet.
-- Single mode: system-level systemd units run as the login user, driven with passwordless sudo. Existing units (`example-bot`, `chat-bot`, `web-game`) are adopted in place, then regenerated by raspi as `raspi-<app>.service` via the GUI.
-- `start | stop | restart | pause | resume | status | logs [-f] [--since]` per app and host.
-- `pause` = SIGSTOP, `resume` = SIGCONT; status shows `paused`.
+- Planned: Start disabled with a reason when the app has no unit (today it fails with “Unit not found”); `pause`/`resume`
+  (SIGSTOP/SIGCONT, state `paused`); follow mode for logs.
+- Single mode: system units run as the login user with passwordless sudo. Adopted apps keep their own unit names; units
+  created by raspi are named `<app>.service`.
 
 ## F5 — Environment variables
-Status: `in progress` — GUI done (select an app → “Environment…”, Ctrl+E): editable table with masked values and a “Show values” toggle, import from the Pi (explicit click), save locally, push, push and restart; confirmation lists added/changed/removed variable NAMES only; sync line shows “same as the Pi” or the +/~/- counts; Pi file read on open. Needs `env_file: /absolute/user-writable/path` per app in `~/.raspi/hosts.yaml` (system paths rejected), or several files with `env_files: [{label: server, path: ...}, {label: client, path: ...}]`: the dialog then shows a file picker, each file has its own local copy (`<host>.<app>.<label>.env`) and its own sync state, and switching asks before discarding unsaved edits. Push is atomic (temp file + mv), mode 600, keeps one `<file>.raspi-bak`, content sent as base64. Declaring files from the app (done): “Environment…” works on any app; with no file declared it opens a “Declare an environment file” dialog that lists `.env*` candidates found read-only up to two folders below the app folder (templates like `.env.example` and our `.raspi-bak` backups are skipped), suggests a label from the folder name and validates path/label; “Add file…” and “Forget file” in the Environment window do the same later. This rewrites `~/.raspi/hosts.yaml` (or the Pi's `~/.raspi/apps.yaml` once the Pi has one, see F2) (comments and flow-style formatting are lost; `hosts.yaml.bak` keeps the previous copy; the result is validated before writing); forgetting never touches the file on the Pi or the local copy. Not done: CLI `raspi env ...`, code scan for missing `process.env.X`, required-keys check before deploy, per-Pi overrides, systemd `EnvironmentFile` delivery for raspi-generated units. Push code is tested with a fake transport only; it has never been run against a real Pi.
-- Source of truth: `~/.raspi/env/<app>.<host>.env` (outside git). `raspi env set/get/ls/unset/push`; values masked by default in output.
-- Push writes the remote env file `chmod 600` and restarts only on request.
-- GUI editor (per app, per Pi): key/value table, values masked with a reveal toggle, add / edit / delete, optional shared base + per-Pi overrides; shows a diff between the PC copy and what is on the Pi, and a "restart required" badge after a push.
-- Import from the Pi (explicit confirmation, since it reads secrets): reads the existing project `.env` or unit `Environment=` lines into the PC copy.
-- Suggestions: variable names found in code (`process.env.X`) that are missing or empty; required keys declared in the manifest block deploy when absent.
-- Delivery target: `EnvironmentFile=` (systemd syntax: `KEY=value`, no `export`, no multi-line, quoting rules differ from dotenv, validated before push) for raspi-generated units; for still-adopted apps that read a `.env` in their folder, write that file instead (no unit change).
+- GUI done (“Environment…”, Ctrl+E), fake Pi: editable table with masked values and a “Show values” toggle; import from the Pi
+  (explicit click); save locally; push; push and restart; confirmation lists variable **names** only; sync line (“same as
+  the Pi” or +/~/- counts). Several files per app (`env_files: [{label, path}]`): a picker, one local copy
+  (`<host>.<app>.<label>.env`) and one sync state each. Push is atomic, mode 600, keeps one `<file>.raspi-bak`, content sent
+  as base64.
+- Declaring files from the GUI (done): with none declared, “Environment…” lists `.env*` candidates found read-only up to two
+  folders below the app (templates and our backups skipped) and writes the declaration to the Pi's `apps.yaml` (or
+  `hosts.yaml` when the Pi has none).
+- Planned (WORKFLOW §6): in the “New app” wizard, use `.env.example` from the clone to pre-fill variable names.
+- Not done: CLI `raspi env ...`, scan of code for missing `process.env.X`, required-keys check before deploy, per-Pi overrides.
+- Values are secrets: never printed, logged, in tooltips, exceptions or test messages.
 
 ## F6 — Cloudflare routing
-Status: `in progress` — built and tested against a simulated Cloudflare API only (never run against the real account yet): GUI window “Cloudflare…” (Ctrl+Shift+C): API token saved in the Windows Credential Manager (never shown, never in a file), zone name + zone ID + account ID (look-up from the token, saved in `~/.raspi/cloudflare.yaml`), table of all tunnels with their routes and status, “Add route…” (Pi + optional **project** + public hostname + local `http://localhost:PORT`; the tunnel name is shown live: `raspi-manager-<pi>` when the project is empty, `raspi-manager-<pi>--<project>` otherwise, so each project or domain can have its own tunnel on the same Pi), “Edit route…” (changes the local service of an existing route of a tunnel created by raspi-manager, Pi and project read back from the tunnel name: host and hostname are locked, same preview/confirm flow, only the ingress rule is rewritten), “Remove route”, “Delete tunnel…” (only tunnels created by raspi-manager for one of your Pis; refused while the tunnel is healthy/degraded, i.e. a connector is running; the confirmation lists its routes and the DNS records that will keep pointing to it, which are not deleted, and requires typing the tunnel name; the status is re-checked right before `DELETE /accounts/{id}/cfd_tunnel/{tunnel}`), “DNS records…” (read-only list of every DNS record of the zone, filterable, with the tunnel name when a CNAME points to one; pre-filled with the hostname of the last Add attempt). Adding a route first computes a read-only plan (create tunnel `raspi-manager-<host>` if missing, add the ingress rule, create the proxied CNAME) shown for confirmation; a hostname that already has a single CNAME can be **repointed** to the new tunnel: Add route… asks “Repoint it…?”, then shows the usual preview with the old target, the old tunnel's name and status (a WARNING when that tunnel is healthy/degraded, since its site would stop working), and applies with `PATCH /zones/{zone}/dns_records/{id}` after the tunnel and ingress rule exist, keeping ttl and comment; the previous target is reported so it can be restored by hand; A/AAAA/TXT or several records are never touched; other conflicts (existing DNS record elsewhere, the message now says what the record is and which tunnel it points to, tunnel managed locally, hostname outside the zone) are refused, never overwritten; an unchanged setup reports “nothing to change”. Remove drops only the ingress rule (DNS record left). Done (2026-11-14): “Set up route…” (toolbar, selected app on a reachable Pi) and `raspi route add HOSTNAME APP[:PORT] [--host] [--repoint] [--dry-run] [--yes]` put one app online end to end: the port is read from the app's listening sockets (read-only, editable; `ss -p` only sees the login user's processes), the app gets its own tunnel `raspi-manager-<pi>--<app>`, the read-only plan covers the Cloudflare changes (as Add route…, including “Repoint it…”) and the Pi (is `cloudflared` there, architecture, curl, passwordless sudo), one confirmation lists everything with the exact Pi script (token hidden), then: Cloudflare changes → on the Pi, only when its unit is not already running: download the official `cloudflared` for the Pi's architecture when missing (SHA-256 taken from the release notes and checked before install), store the token in `/etc/cloudflared/raspi-tunnel-<name>.env` (root, mode 600), create and start `raspi-tunnel-<name>.service` → wait for the tunnel to report healthy and ask the public URL once (a non-answer is reported, not fatal). The token is fetched at the last moment, sent to the Pi inside the script over ssh stdin, and never shown, saved on the PC or put in messages. Tested with a fake Cloudflare and fake Pi; the first real run is up to the developer. Not done: deleting DNS records, recording the hostname in the app's `apps.yaml` entry, removing a connector from a Pi, per-app routes shown in the table.
-- One Cloudflare Tunnel per Pi, `cloudflared` as a system service (existing one on `raspi` is adopted: local `/etc/cloudflared/config.yml` edited over SSH first, API-managed tunnel later); tunnel and routes created via the Cloudflare API with an API token stored in `~/.raspi/`.
-- `raspi route add <hostname> <app>[:port] [--path P]`, `route ls`, `route rm`; routes also declarable in the app manifest (several hostnames/paths per app); catch-all `http_status:404` kept last.
-- Dashboard shows public URL and tunnel state per app.
-- Target use cases: the Discord game (web app + OAuth/Activity) and other web projects.
+Built and tested against a simulated Cloudflare only (never run on the real account).
+- **Cloudflare window** (“Cloudflare…”, Ctrl+Shift+C): API token in the Windows Credential Manager (never shown or in a
+  file), zone name/ID and account ID looked up from the token and saved in `~/.raspi/cloudflare.yaml`; table of all tunnels
+  with routes and status; “Add route…” (Pi + optional project + hostname + local `http://localhost:PORT`; tunnel
+  `raspi-manager-<pi>[--<project>]`), “Edit route…”, “Remove route” (ingress rule only, DNS left), “Delete tunnel…” (only
+  raspi-created tunnels, refused while healthy/degraded, typed-name confirmation), “DNS records…” (read-only list).
+- **Add route** computes a read-only plan first (create tunnel, ingress rule with the catch-all `http_status:404` last,
+  proxied CNAME) and asks to confirm. A hostname with a single CNAME can be **repointed** (PATCH, with a warning when the old
+  tunnel is healthy); A/AAAA/TXT or several records are never touched; other conflicts are refused, never overwritten.
+- **Set up route** (done): “Set up route…” / `raspi route add HOSTNAME APP[:PORT] [--host] [--repoint]`: port read from the
+  app's listening sockets (editable), tunnel `raspi-manager-<pi>--<app>`, one confirmation listing the Cloudflare changes
+  and the exact Pi script (token hidden), then the Pi side only if its unit is not already running: official `cloudflared`
+  for the Pi's architecture (SHA-256 from the release notes), token in `/etc/cloudflared/raspi-tunnel-<name>.env` (root,
+  600), `raspi-tunnel-<name>.service`; then wait for healthy and ask the public URL once. The token travels over ssh stdin and
+  is never shown or saved on the PC.
+- Cloudflare API facts (official docs, checked 2026-10-17): `POST /accounts/{id}/cfd_tunnel` `{"name","config_src":"cloudflare"}`
+  returns `id` and `token`; `PUT …/cfd_tunnel/{tunnel}/configurations` with `config.ingress`; `POST /zones/{zone}/dns_records`
+  proxied CNAME to `<tunnel-id>.cfargotunnel.com`; token needs Account › Cloudflare Tunnel (Edit) and Zone › DNS (Edit).
+- Not done: deleting DNS records, recording the hostname in the app's inventory entry, removing a connector from a Pi,
+  per-app routes in the main table.
 
-## F7 — Dashboard / main UI
-Status: `in progress` — the main UI is now the native Qt app (`raspi gui`): live table (auto-refresh 10 s, per-host jobs), Restart / Start / Stop / Logs / Refresh with keyboard shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L), confirmation dialog for stop/restart, logs dock, unreachable and "checking" states, light/dark. The web dashboard (`raspi web`) remains as a secondary front. Still to build in the GUI: env editor, deploy/version picker, route editor, wizards (F7b), tray icon.
-- Fleet view, row actions (restart primary; stop/pause secondary; destructive confirmed), logs drawer, env editor, deploy/version picker, keyboard shortcuts. States: loading / empty (shows CLI command) / error (cause + fix) / success.
+## F7 — Main UI
+Native Qt app (`raspi gui`): live table, Restart/Start/Stop/Logs/Refresh with shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L),
+confirmation dialogs, logs dock, unreachable and “checking” states, light/dark. The web dashboard is a secondary front.
+Planned: a per-app **stage** column (WORKFLOW §2: declared, key, cloned, built, env, unit, running, routed) that drives
+which buttons are enabled and says why when one is not; version picker; tray icon. Every screen has loading, empty, error
+and success states.
 
-## F7b — Guided onboarding & adoption (GUI)
-Status: `planned`
-- "Add a Pi" wizard: address + user + one-time password (kept in memory for the key install only, never written to disk or logs) → installs the PC public key, verifies passwordless login, runs `doctor`, offers `provision`. Replaces `scripts/setup-pi-ssh.ps1` for GUI users (the script stays for bootstrapping the PC's ssh-agent).
-- "Adopt existing" scan (read-only): lists systemd services running as the user, git repos under `~/dev`, listening ports, `cloudflared` config, node/python managers (nvm, pyenv); proposes app manifests; migration to raspi-managed units is a separate confirmed step with dry-run.
-- "New app" wizard: pick a GitHub repo → detect runtime (package.json / pyproject) → proposes install/run commands and Node/Python version → env vars → target Pi → optional hostname → deploy → shows live status and URL.
-- Pre-flight checks surfaced in the UI (agent/key, passwordless sudo, free RAM/disk, runtime available for the Pi's architecture).
+## F7b — Guided “New app” wizard
+Status: `planned`, decided 2026-11-15 (WORKFLOW §6). One form (name, repository, build, run, folder) asked once, then key,
+clone, build, environment (pre-filled from `.env.example`), unit, each with a confirmation and a progress list, resuming
+at the failed step. Separate buttons stay for special cases. Also planned: an “Add a Pi” key-install wizard, pre-flight
+checks, “Remove app…” (ticked items, typed name, data folders never deleted).
 
 ## Project compatibility checklist (what an app needs to be managed by raspi)
-Observed on the three existing apps, 2026-10-17 (read-only). A project is easiest to manage when it has:
-1. A git repo with a remote (deploy by ref); `chat-bot` has none yet.
-2. A declared Node/Python version (`engines` in package.json, `.nvmrc`, or manifest field); today versions are only implied by the absolute `node` path in each unit file.
-3. A build step declared as a script when needed (`web-game` runs `dist/index.js` built from TypeScript; client and server are separate packages).
-4. A single run command (`npm start` or manifest `run`), with no absolute `/home/...` paths.
-5. All configuration through environment variables (`PORT`, tokens) read at start; `.env` files not committed and not relied upon at runtime (raspi supplies the env file via the unit).
-6. Persistent data in a dedicated folder (e.g. `Example-Bot/data`) that survives releases (raspi `shared/`), not inside the checked-out code.
-7. No untracked secrets or local files in the working tree (`web-game/cookies.txt`).
-8. A clean working tree: deploy by checkout would discard local edits.
+1. A git repo with a remote (deploy by ref). 2. A declared Node/Python version (`engines`, `.nvmrc`). 3. A build step as a
+script when needed. 4. A single run command, no absolute `/home/...` paths. 5. Configuration through environment variables,
+`.env` not committed (an `.env.example` helps the wizard). 6. Persistent data in a dedicated folder outside the working
+copy (declare it in `requires:`). 7. No untracked secrets in the working tree. 8. A clean working tree (updates are refused
+otherwise).
 
-## F10 — Set up an app on a Pi from the GUI (first target: web-game on raspi-v, online through Cloudflare)
-Status: `planned` (requested 2026-10-17; plan below, not approved/built yet). `web-game` will NOT run on `raspi` (Pi 2, 32-bit, 1 GB); it moves to `raspi-v`.
-What the wizard must reproduce, found by reading `raspi` (read-only): `deploy.sh` = `git pull`, client `npm install` + `npm run build` (`tsc -b && vite build` → `client/dist`, served by the Node server through `express.static`), server `npm install` + `npm run build` (`tsc` → `dist/index.js`), restart service. System needs: Node 22, `ffmpeg` (apt), `yt-dlp` (pip --user on raspi, 2026.07.04; PEP 668 on trixie forbids that, so use the standalone binary or pipx), two `.env` files, service on port 2567 as the login user, tunnel hostname → `http://localhost:2567`, Discord Developer Portal URL mapping (manual).
-Planned steps, each previewed (exact commands), confirmed, with dry-run, and run only by the developer from the GUI: 1 preflight (SSH, sudo, arch, disk/RAM, git) · 2 apt packages · 3 runtimes (Node via nvm, yt-dlp binary) · 4 deploy key generated on the Pi, public key shown for GitHub, verified with `git ls-remote` · 5 clone + checkout ref · 6 build steps from the app definition · 7 env files pushed from the local copies · 8 systemd unit generated and enabled · 9 Cloudflare: tunnel created through the API, ingress rule, proxied CNAME, `cloudflared` installed and `cloudflared service install <token>` · 10 verification (unit active, port listening, tunnel healthy, HTTPS answers).
-Step 9 is built differently from the plan below: one systemd unit per tunnel with the token in a root-only environment file instead of `cloudflared service install <token>` (see DECISIONS 2026-11-14). Verified Cloudflare API (official guide, 2026-10-17): `POST /accounts/{id}/cfd_tunnel` with `{"name","config_src":"cloudflare"}` returns `id` and `token`; `PUT /accounts/{id}/cfd_tunnel/{tunnel}/configurations` with `config.ingress` (hostname rules + final catch-all `http_status:404`); `POST /zones/{zone}/dns_records` with a proxied CNAME to `<tunnel-id>.cfargotunnel.com`; token needs Account › Cloudflare Tunnel (Edit) and Zone › DNS (Edit); `sudo cloudflared service install <token>`.
+## F8 — Fleet health and extras
+Status: `planned`: Pi temperature, disk, memory; grouped `apt upgrade`; env backup. Not before F1–F7 work.
 
-## F8 — Fleet health & extras (later)
-Status: `planned`
-- Pi temperature/disk/memory, grouped `apt upgrade`, `.env` backup. Not before F1–F7 work.
+## Reference apps
+- **notes-app** (Node 26 + Svelte PWA, first real app on `raspi-v`): `npm ci && npm run build`, `npm start`, env through
+  `EnvironmentFile`, a data directory with a marker file on an external disk (`DATA_DIR`), exposed through a tunnel.
+- **web-game** (Discord game, to move to `raspi-v`): Node 22, `ffmpeg` (apt), `yt-dlp` (standalone binary or pipx, since
+  PEP 668 forbids `pip --user` on trixie), two `.env` files (client and server), port 2567, Discord Developer Portal URL
+  mapping (manual).
 
 ## Open questions
 See QUESTIONS.md.

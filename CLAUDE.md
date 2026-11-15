@@ -7,7 +7,7 @@
 - Tier: **T1** personal tool (see DECISIONS.md).
 
 ## Stack (chosen 2026-10-17 — re-check versions online before pinning or upgrading)
-- Python managed with `uv`; **Typer** (CLI), system `ssh` via `subprocess` (SSH, see DECISIONS), **FastAPI + Jinja2 + HTMX** (dashboard, server-rendered, `127.0.0.1` only), **PyYAML**, **httpx** (Cloudflare API), **pytest**, **ruff**. Resolved by `uv` from PyPI on 2026-10-17 (locked in `uv.lock`): Python 3.12, typer 0.27.3, fastapi 0.143.3, uvicorn 0.54.0, pyyaml 6.0.3, python-multipart 0.0.32, pytest 9.1.1, ruff 0.17.1, uv 0.13.1 (installed with `pip --user`). `httpx` is a dev dependency for now (test client); HTMX not added yet. **Native UI: PySide6-Essentials 6.12.0 (Qt widgets, LGPL)**; GUI tests run with `QT_QPA_PLATFORM=offscreen` (no fonts/stylesheet there, so use a real-platform capture to judge looks).
+- Python managed with `uv`; **Typer** (CLI), system `ssh` via `subprocess` (SSH, see DECISIONS), **FastAPI + Jinja2 + HTMX** (dashboard, server-rendered, `127.0.0.1` only), **PyYAML**, **httpx** (Cloudflare API), **pytest**, **ruff**. Resolved by `uv` from PyPI on 2026-10-17 (locked in `uv.lock`): Python 3.14.10 in `.venv` (`.python-version` 3.14, `requires-python >=3.12`), typer 0.27.3, fastapi 0.143.3, uvicorn 0.54.0, pyyaml 6.0.3, python-multipart 0.0.32, pytest 9.1.1, ruff 0.17.1, uv 0.13.7 (on PATH, Python314 Scripts). `httpx` is a runtime dependency (Cloudflare API, GitHub host keys) and the test client; HTMX not added yet. **Native UI: PySide6-Essentials 6.12.0 (Qt widgets, LGPL)**; GUI tests run with `QT_QPA_PLATFORM=offscreen` (no fonts/stylesheet there, so use a real-platform capture to judge looks).
 - On the Pi: system-level systemd units (run as the login user, passwordless sudo), `git`, `uv`/Python, Node (per app), `cloudflared`.
 - **Library policy**: anything not listed needs approval. Before adding: latest stable version, maintenance, publisher, licence; say what was added and why; log in DECISIONS.md.
 - **Version freshness**: when touching dependencies and at each milestone, compare with current stable releases. Never claim "verified" without checking online that session.
@@ -16,6 +16,7 @@
 - @docs/BRIEF.md — goal, ambition, constraints (the why)
 - @docs/SPEC.md — features, behaviour, scope, status
 - `docs/ARCHITECTURE.md` — code map and data flows (read when touching structure)
+- `docs/WORKFLOW.md` — end-to-end path from a bare Pi to an app online and updated: steps, prerequisites, checks, undo, open points (**read before adding or changing any step or button; write the step there first**)
 - `docs/DESIGN.md` — dashboard design direction and tokens (read before any UI work; use the `design-ui` skill in `apply` mode)
 - `docs/DECISIONS.md` — decision log, newest first
 - `docs/QUESTIONS.md` — doubtful behaviours awaiting an answer
@@ -37,6 +38,7 @@
 - `uv run ruff check . && uv run ruff format --check .`
 - `uv run pytest`
 - UI changes: screenshots at 390 / 768 / 1280 px, light + dark.
+- New or changed step/button: written in `docs/WORKFLOW.md` first; its GUI flow tested end to end with fakes (button → plan → confirm → apply → message, failure path included); generated shell scripts syntax-checked; no duplicate method name across the window mixins. Before handing it over, say what was run for real on a Pi (read-only) and what was not.
 
 ## Data safety & security
 - The Cloudflare API token lives only in the Windows Credential Manager (keyring); never print, log, store in files/tests/messages. Claude does not read it or call the real Cloudflare API unless the developer asks; changes to Cloudflare go through the GUI with a preview.
@@ -57,10 +59,10 @@
 - Check whether the OS/an approved library already does it before building.
 - Milestone check (`/project-checkpoint`) each release or ~20 commits.
 
-## Commands (to be confirmed at scaffold time)
-`uv` is not on PATH: use `python -m uv ...`.
-- `python -m uv sync` · `python -m uv run pytest` · `python -m uv run ruff check .` · `python -m uv run ruff format .`
-- Commands: `raspi-manager` (aliases `raspi`, `rpim`). Without a subcommand it opens the native app window; `python -m uv run raspi-manager status|logs|start|stop|restart|web`. Desktop shortcut via `scripts/install-shortcut.ps1`; no-console launcher `raspi-manager.vbs`.
+## Commands
+`uv` is on PATH (`Python314/Scripts`). Do not use `python -m uv` from a shell where `.venv` comes first on PATH: it fails with "No module named uv".
+- `uv sync` · `uv run pytest` · `uv run ruff check .` · `uv run ruff format .` (GUI tests: set `QT_QPA_PLATFORM=offscreen`)
+- Commands: `raspi-manager` (aliases `raspi`, `rpim`). Without a subcommand it opens the native app window; `uv run raspi-manager status|logs|start|stop|restart|web`; provisioning and install commands are under `raspi host ...` (see WORKFLOW.md). Desktop shortcut via `scripts/install-shortcut.ps1`; no-console launcher `raspi-manager.vbs`.
 - `raspi-manager status` (read-only live state) · `raspi-manager logs <app> -n 50` (read-only) · `raspi-manager start|stop|restart <app> [--dry-run] [--yes]` (**changes a Pi: only the developer runs these, never Claude**) · `raspi-manager web` (http://127.0.0.1:8765)
 - Every `subprocess` call from the GUI must pass `creationflags=CREATE_NO_WINDOW` (done in `ssh/transport.py`, covered by `tests/test_transport.py`), otherwise Windows flashes a console window per call.
 - Config: `~/.raspi/hosts.yaml` (hosts and their apps). Subprocess input to ssh must be bytes (Windows would otherwise send CRLF to `sh`).

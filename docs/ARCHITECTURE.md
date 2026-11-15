@@ -1,37 +1,52 @@
 # Architecture — code map
-Updated whenever a structural element is added, moved or removed. Principles live in CLAUDE.md. Implemented so far (slices 1-2): `core/models.py`, `core/remote.py` (status/action/logs scripts + parsers; actions whitelisted to start/stop/restart), `config/loader.py`, `ssh/transport.py` (system `ssh` via subprocess), `services/status.py`, `services/actions.py` (`run_action` with dry-run, `read_logs`, `find_app`), `cli/main.py` (`status`, `start`, `stop`, `restart`, `logs`, `web`), `web/app.py` (token + Host-header check) with templates `base`, `fleet`, `confirm`, `result`, `logs`, tests `test_status.py` and `test_actions.py`. Native UI (slice 3): `gui/theme.py` (tokens → QSS), `gui/workers.py` (`submit`: QRunnable jobs, results delivered by queued signals), `gui/fleet_model.py` (QAbstractTableModel, one row per configured app, pending/unreachable/checking states), `gui/main_window.py` (toolbar, table, logs dock, 10 s auto-refresh, one refresh job per host), `gui/app.py` (`raspi gui`, follows Windows light/dark), `tests/test_gui.py` (offscreen). Environment (slice 4): `core/env.py` (parse/render/diff, NAMES-only messages), `config/envstore.py` (`~/.raspi/env/<host>.<app>.env`), `core/remote.py` env read/push scripts, `services/env.py` (`read_remote`, `push`, dry-run), `gui/env_dialog.py`, `tests/test_env.py`. Declaring env files (slice 5): `config/writer.py` (add/remove env file declarations in hosts.yaml, validated, `.bak` copy), `core/remote.py` detect script/parser, `core/naming.py` (label suggestions), `services/env.detect_env_files`, `gui/add_env_dialog.py`, `tests/test_declare.py`. Cloudflare (slice 6): `cloudflare/client.py` (httpx; token never in errors), `core/routes.py` (hostname/service/id validation, ingress merge with the catch-all last), `config/cloudflare_settings.py` (token in keyring, ids in `~/.raspi/cloudflare.yaml`), `services/routing.py` (overview, dns_overview, plan_add_route read-only, apply_add_route, remove_route, fetch_connector_token), `gui/cloudflare_dialog.py`, tests `test_cloudflare.py` and `test_cloudflare_dialog.py` (httpx.MockTransport). Adding a Pi (slice 7): `config/loader.py` (`HostsFileMissing`, `check_host`; an empty hosts.yaml counts as no Pi), `config/writer.add_host` (creates `~/.raspi/` and hosts.yaml on first use), `config/writer.update_host/remove_host`, `gui/add_host_dialog.py` (add and edit), `gui/host_actions.py` (mixin holding add/edit/remove and the banner/panel switch, split out of `gui/main_window.py` for the 400-line limit), `gui/setup_panel.py` (first-run how-to panel + `open_guide`), `raspi host add|ls|edit|rm`, `tests/test_add_host.py`, `tests/test_hosts_file.py`. App inventory on the Pi (slice 8, read only): `config/loader.parse_manifest` (+ shared `_apps`), `core/remote.build_manifest_read_script` (`MANIFEST_PATH`), `services/inventory.py` (`read_inventory`, `resolve_all`: Pi file first, hosts.yaml fallback), `collect_host` reads it before the status script (2 SSH calls per Pi per refresh), `HostStatus.inventory/inventory_error`, `FleetModel` builds rows from the effective host and `status_summary`, CLI `_live_hosts`, `tests/test_inventory.py`. Publishing (slice 2): `core/manifest.render_manifest` (pure), `core/remote.build_manifest_push_script`, `services/inventory.plan_publish/publish`, `gui/publish_actions.py` (mixin: button, preview dialog, worker calls; `reload_config` moved into `gui/host_actions.py` to keep `main_window.py` under 400 lines), `raspi host publish`, CLI stdout forced to UTF-8 so ✓/✕ print on cp1252 consoles. Env declarations on the Pi (slice 3): `services/declare.py` (`declare_env_file`/`forget_env_file`: edit the Pi's apps.yaml read just now, or hosts.yaml when the Pi has none), `gui/declare.py` (`run_declaration`: worker + local event loop so dialogs stay synchronous without blocking the GUI thread), `gui/env_actions.py` (mixin holding “Environment…”, out of `main_window.py`), `tests/test_declare_pi.py`. Adopt scan (slice 4): `core/scan.py` (`build_scan_script`, `parse_scan`, `Candidate`), `services/adopt.py` (`scan_host`, `candidate_to_app`, `add_apps`), `gui/adopt_dialog.py`, `gui/adopt_actions.py` (mixin: button, confirmation, worker), `raspi host scan|adopt`, `tests/test_adopt.py`. Routing an app (slice 9): `core/connector.py` (pure: architecture→asset, release checksum parsing, unit and install script rendering, check and port scripts and parsers), `cloudflare/release.py` (latest official cloudflared release over httpx), `services/app_route.py` (`plan_app_route` read-only, `apply_app_route`, `verify_route`, `detect_ports`), `gui/route_dialog.py`, `gui/route_actions.py` (mixin), `cli/route.py` (`raspi route add`), `tests/test_app_route.py`, `tests/test_route_gui.py`. Provisioning (slice 10): `core/provision.py` (pure: check script and parser into `Check` items, apt whitelist, provision script), `services/provision.py` (`doctor`, `provision` with dry run), `gui/provision_actions.py` (mixin: “Check Pi…” and “Install missing…”), `cli/provision.py` (`raspi host doctor|provision|install-node|deploy-key`, registered on the host group, out of `cli/main.py` for the 400-line limit), `tests/test_provision.py`; deploy key (same slice): `core/deploykey.py` (validation, key and verify scripts), `services/deploykey.py` (`ensure_key`, `verify_repo`, `fetch_github_keys`), `gui/deploykey_actions.py`, `tests/test_deploykey.py`; install (same slice): `AppRef` gains `repo`/`build`/`run` (validated in `config/loader`, written by `core/manifest`), `core/install.py` (probe, clone and build script), `services/install.py` (`plan_install`, `install_app`, records the app with `services/adopt.add_apps`), `raspi host install-app`, `tests/test_install.py`; unit (same slice): `core/unit.py` (unit text, systemd escaping, probe and install scripts), `services/unit.py` (`plan_unit`, `install_unit`), `raspi host install-unit`, `tests/test_unit.py`; GUI forms: `gui/install_dialog.py` (`InstallAppDialog`, `app_from_fields`), `gui/install_actions.py` (mixin: “Install app…”, “Install unit…”), `tests/test_install_gui.py` (`gui/main_window.py` is at 394 lines: the next addition needs a split); Node (same slice): `core/runtime.py` (pinned nvm tag + SHA-256, install script), `services/runtime.py` (`plan_node`, `install_node`), `raspi host install-node`, “Install Node…” in `gui/provision_actions.py`, `tests/test_runtime.py`. The rest below is planned.
+Updated in the same change as any structural element added, moved or removed. Principles: CLAUDE.md. Order of the steps:
+WORKFLOW.md. Dependencies point inward: `cli`/`web`/`gui` → `services` → `core`; `services` → `ssh`, `cloudflare`, `config`.
 
-## Layout
-```
-src/raspi/
-  core/        pure logic: models (Host, App, Route, Release), manifest/inventory parsing,
-               systemd unit rendering, release planning, route planning. No I/O.
-  ssh/         transport interface + Fabric/Paramiko implementation; fake transport for tests.
-  cloudflare/  httpx client: tunnels, ingress config, DNS records.
-  services/    use cases (deploy, rollback, lifecycle, env push, route sync, doctor) combining core + ssh + cloudflare.
-  config/      loading/saving ~/.raspi/ (hosts.yaml, apps/*.yaml, env/*.env, secrets).
-  cli/         Typer commands, thin wrappers over services.
-  web/         FastAPI app, Jinja2 templates, HTMX partials, static assets (see DESIGN.md).
-tests/         unit tests on core; services with fake transport.
-docs/          BRIEF, SPEC, ARCHITECTURE, DESIGN, DECISIONS, QUESTIONS.
-```
-Dependencies point inward: `cli`/`web` → `services` → `core`; `services` → `ssh`, `cloudflare`, `config`.
+## Layout (`src/raspi/`)
+| Package | Role | Modules |
+|---|---|---|
+| `core/` | pure logic, no I/O (scripts are built here as text, never run) | `models` (Host, AppRef, EnvFile, status types) · `remote` (status/action/logs/env/manifest scripts and parsers) · `manifest` (render `apps.yaml`) · `env` (parse/render/diff, names only) · `naming` · `scan` (adopt scan) · `provision` (doctor checks, apt whitelist) · `runtime` (nvm pinned + SHA-256) · `deploykey` (key, alias, verify) · `install` (clone + build script) · `unit` (systemd unit text, escaping) · `routes` (hostname/ingress rules) · `connector` (cloudflared install script) |
+| `services/` | use cases: core + ssh + cloudflare + config | `status` · `actions` (start/stop/restart, logs) · `inventory` (read Pi `apps.yaml`, publish) · `adopt` (scan, add/update apps) · `declare` (env file declarations) · `env` · `provision` (`doctor`, `provision`) · `runtime` · `deploykey` · `install` · `unit` · `routing` (Cloudflare overview, add/remove route) · `app_route` (route + connector end to end) |
+| `ssh/` | `transport.py`: system `ssh` through `subprocess` (`Transport` protocol; scripts sent on stdin to `sh -s`; `CREATE_NO_WINDOW`) | |
+| `cloudflare/` | `client` (httpx, token never in errors), `release` (latest cloudflared release) | |
+| `config/` | `loader` (hosts + manifest validation), `writer` (hosts.yaml edits, `.bak`), `envstore` (local env copies), `cloudflare_settings` (keyring + ids) | |
+| `cli/` | Typer: `main` (status, start/stop/restart, logs, host add/edit/rm/publish/scan/adopt, gui, web), `provision` (host doctor/provision/install-node/deploy-key/install-app/install-unit), `route` | |
+| `gui/` | Qt app: `main_window` (table, toolbar, logs dock) + one **mixin per feature** (`*_actions.py`) and its dialogs; `workers.submit` (all SSH off the GUI thread), `fleet_model`, `theme` | actions: host, publish, adopt, provision, deploykey, install, env, route · dialogs: add_host, adopt, add_env, env, install, route, cloudflare |
+| `web/` | FastAPI + Jinja (`app.py`, templates `base fleet confirm result logs`), secondary front, token + localhost Host check | |
 
-## On the Pi (per app)
-```
-~/apps/<app>/releases/<sha>/    checked-out code + venv or node_modules
-~/apps/<app>/current -> releases/<sha>
-~/apps/<app>/shared/            persistent data (kept across releases)
-/etc/systemd/system/raspi-<app>.service   (User=<login user>, EnvironmentFile=/etc/raspi/<app>.env, chmod 600)
-/etc/systemd/system/cloudflared.service   (tunnel connector; config /etc/cloudflared/config.yml)
-```
+Tests (`tests/`): one file per feature; services with a fake transport; GUI offscreen (`QT_QPA_PLATFORM=offscreen`).
 
-## Data flow
-- Deploy: CLI/web → `services.deploy` → `core` plans steps → `ssh` runs them (fetch → checkout → install → switch link → restart) → status re-read from systemd.
-- Status: web/CLI → `services.status` → parallel SSH per host (timeout) → `systemctl show`, `git rev-parse` → rendered with "last checked".
-- Route: `services.route` → `core` builds ingress list (catch-all last) → `cloudflare` updates tunnel config + DNS → dashboard shows URL.
+## GUI rules (they exist because of real bugs)
+- A mixin method name must be unique across `MainWindow` and all mixins: a duplicate silently shadows the other (this broke
+  “Install app…” once). A test enforces it (`test_install_gui.py`). Mixin helpers get feature-specific names.
+- No SSH on the GUI thread: `submit(fn, on_done, on_failed)`; `on_done`/`on_failed` are slots of the window; every failure
+  shows a message (no silent path).
+- `main_window.py` is at the 400-line limit: new toolbar groups go to their own module before adding more buttons.
+- Offscreen captures have no fonts or stylesheet: judge looks on the real platform.
+
+## On the Pi
+```
+~/.raspi/apps.yaml                         app inventory (names, paths, repo, build, run, env file paths; no secrets)
+~/apps/<app>/                              plain git working copy (or the declared path); no releases/ layout
+~/.ssh/raspi_deploy_<app>[.pub]            deploy key; alias block `Host github-<app>` in ~/.ssh/config
+/etc/systemd/system/<app>.service          app unit, first line "# managed by raspi-manager", EnvironmentFile = declared env files
+/etc/systemd/system/raspi-tunnel-<name>.service   cloudflared connector, token in /etc/cloudflared/raspi-tunnel-<name>.env (root, 600)
+<env file as declared>                     chmod 600, atomic push, one .raspi-bak
+```
+Adopted apps keep their own units; only raspi-created ones follow these names.
+
+## Data flows
+- **Status**: GUI/CLI → `services.status.collect_host` → per Pi: read `apps.yaml`, then one status script (`systemctl show`,
+  `git rev-parse`) → table with “last checked”. Two SSH calls per Pi per refresh.
+- **Any change** (WORKFLOW rule 2): `plan_*` (read-only, raises a typed error with a fix) → confirmation showing the exact
+  script (`--dry-run` stops here) → `install_*`/`apply_*` → result re-read from the Pi.
+- **New app path**: `deploykey` → `install` (clone, build, record in `apps.yaml` via `adopt.add_apps`/`update_app`) →
+  `env` push → `unit` → start → `app_route`. Update (planned): fetch → fast-forward → build → restart.
+- **Route**: `app_route` → Cloudflare (tunnel, ingress, DNS) → connector script on the Pi (token fetched last, sent over
+  stdin, hidden in previews) → verify tunnel health and HTTPS.
 
 ## Conventions
-- Every mutating service takes a `dry_run` flag and returns a plan before executing.
-- Remote commands built as argument lists, quoted with `shlex.quote`.
-- Errors: typed exceptions carrying a human message and a suggested fix, rendered the same in CLI and web.
+- Every mutating service takes `dry_run` or is split into plan and apply; remote commands are argument lists quoted with
+  `shlex.quote`, never user text concatenated.
+- Errors are typed exceptions with a human message and a suggested fix, rendered the same in CLI and GUI.
+- Files < 400 lines (current exceptions to fix: `gui/cloudflare_dialog.py`, `gui/env_dialog.py`, `services/routing.py`).
