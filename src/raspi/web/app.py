@@ -22,7 +22,14 @@ from raspi.services.status import collect_all
 from raspi.ssh.transport import SshTransport, Transport
 
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
-GLYPH = {"running": "●", "stopped": "○", "failed": "▲", "working": "◌", "unknown": "?"}
+GLYPH = {
+    "running": "●",
+    "stopped": "○",
+    "failed": "▲",
+    "working": "◌",
+    "unknown": "?",
+    "no-unit": "–",
+}
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
 

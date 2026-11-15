@@ -9,6 +9,7 @@ import shlex
 from raspi.core.models import AppRef, AppStatus
 
 SHOW_PROPS = (
+    "LoadState",
     "ActiveState",
     "SubState",
     "UnitFileState",
@@ -194,7 +195,9 @@ def parse_status(output: str, apps: tuple[AppRef, ...]) -> list[AppStatus]:
 
 
 def _apply(app: AppStatus, key: str, value: str) -> None:
-    if key == "ActiveState":
+    if key == "LoadState":
+        app.load = value
+    elif key == "ActiveState":
         app.active = value
     elif key == "SubState":
         app.sub = value

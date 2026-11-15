@@ -25,6 +25,11 @@ _NOISE = (
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 on non-Windows
 
+# The script travels on stdin. `sh -s` would read it line by line from that same stdin, so a
+# command that reads stdin (a build tool, an installer) could swallow the rest of the script
+# without any error. Reading it all first (`cat`) and evaluating it leaves stdin at EOF.
+REMOTE_COMMAND = "sh -c 'eval \"$(cat)\"'"
+
 
 @dataclass
 class RunResult:
@@ -67,8 +72,7 @@ class SshTransport:
             "-o",
             "StrictHostKeyChecking=yes",  # unknown host keys must be accepted deliberately
             f"{host.user}@{host.address}",
-            "sh",
-            "-s",
+            REMOTE_COMMAND,
         ]
         try:
             # Bytes, not text: text mode would turn "\n" into "\r\n" on Windows and break `sh`.

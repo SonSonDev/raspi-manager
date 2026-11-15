@@ -126,3 +126,30 @@ def test_run_command_is_required_and_an_existing_app_is_prefilled(qapp):
     update.build_edit.setText("npm ci")
     update._accept()
     assert update.result_value.build == "npm ci" and update.result_value.name == "old"
+
+
+def test_buttons_explain_themselves_without_a_unit(qapp):
+    from raspi.core.models import AppRef
+    from raspi.gui.main_window import MainWindow
+    from raspi.gui.theme import LIGHT
+    from raspi.ssh.transport import RunResult
+
+    class Pi:
+        def run_script(self, host, script, timeout=20.0):
+            return RunResult(
+                True, "@@APP old\nLoadState=not-found\nActiveState=inactive\n"
+            )
+
+    host = Host("pi", "10.0.0.1", "pi", (AppRef("old", "old.service"),))
+    window = MainWindow([host], Pi(), LIGHT, auto_refresh=False)
+    from raspi.services.status import collect_host
+
+    window.model.set_host_status(collect_host(host, Pi()))
+    window.select_key(("pi", "old"))
+    window._update_buttons()
+    assert not window.btn_start.isEnabled()
+    assert "Install unit" in window.btn_start.toolTip()
+    assert (
+        not window.btn_unit.isEnabled() and "run command" in window.btn_unit.toolTip()
+    )
+    window.close()

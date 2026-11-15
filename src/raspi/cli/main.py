@@ -41,6 +41,7 @@ GLYPH = {
     "failed": "▲ failed",
     "working": "◌ working",
     "unknown": "? unknown",
+    "no-unit": "– no unit",
 }
 COLOR = {
     "running": "green",
@@ -48,6 +49,7 @@ COLOR = {
     "failed": "red",
     "working": "yellow",
     "unknown": "dim",
+    "no-unit": "dim",
 }
 
 

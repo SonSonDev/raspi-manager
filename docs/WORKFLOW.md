@@ -42,11 +42,13 @@ never overwritten). Steps 2–4 are skipped; 5, 7, 8 apply as usual.
 3. **Idempotent.** Running a step twice is safe: it does nothing, or updates, never duplicates or overwrites something
    raspi-manager did not create.
 4. **Stage-aware UI.** A button is enabled only when its prerequisite holds, and a disabled button says why (tooltip).
+   🟡 Done for Start (state “– no unit”, tooltip points to “Install unit…”) and “Install unit…”; the full stage column is ⬜.
    Actions on an app say what to do next when they cannot run (e.g. Start without a unit: “Create the unit first”).
 5. **Silent failures are bugs.** Every worker failure ends in a visible message with the cause and the next action. No
    method name is defined twice across `MainWindow` and its mixins (test).
-6. **Scripts do not read stdin.** Scripts reach the Pi on stdin (`sh -s`); any command that might read stdin runs with
-   `< /dev/null` so it cannot swallow the rest of the script. ⬜ (to build)
+6. **Scripts do not read stdin.** The transport has the Pi read the whole script first (`sh -c 'eval "$(cat)"'`), so a
+   command that reads stdin gets end-of-file and cannot swallow the rest of the script. ✅ Every generated script is also
+   syntax-checked with `sh -n` and checked for bashisms in the tests. ✅
 7. **Secrets**: never in `apps.yaml`, messages, logs or tests; env values are shown by name and count only.
 8. **No change to a Pi by Claude.** Claude only runs read-only commands on a Pi; the developer runs every change.
 
@@ -96,4 +98,5 @@ If code and this file disagree, say so and fix one of them in the same change.
 | 2026-11-15 | raspi-v | 1 doctor (read-only) | fit: Debian 13 aarch64, Node 26.13.1 present, 23 GB free |
 | 2026-11-15 | raspi-v | 2 deploy key + verify | ✓ `SonSonDev/notes-app` readable |
 | 2026-11-15 | raspi-v | 3 clone | ✓ done by the developer; **build/run left empty** (form showed grey examples) → fixed (required `run`, “Update an app”) |
+| 2026-11-15 | raspi-v | transport change (whole-script read) | ✓ `host doctor` and `status` run through it; notes-app shows “– no unit” |
 | 2026-11-15 | raspi-v | 4–9 | not run yet |

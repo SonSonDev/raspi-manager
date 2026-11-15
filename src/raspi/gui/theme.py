@@ -62,6 +62,7 @@ STATE_COLOR = {
     "unreachable": "err",
     "checking": "info",
     "unknown": "muted",
+    "no-unit": "muted",
 }
 STATE_GLYPH = {
     "running": "●",
@@ -72,6 +73,7 @@ STATE_GLYPH = {
     "unreachable": "✕",
     "checking": "◌",
     "unknown": "?",
+    "no-unit": "–",
 }
 
 

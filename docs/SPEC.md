@@ -86,7 +86,8 @@ restart; refused when the working copy has local changes; the previous revision 
   error); `start|stop|restart` through `sudo -n systemctl` (CLI: stop/restart ask unless `--yes`; all have `--dry-run`; GUI:
   stop/restart confirm, start is direct); `logs` (read-only, ≤ 1000 lines); 10 s auto-refresh, per-host jobs.
 - Dashboard mutations need a per-process token and a localhost Host header.
-- Planned: Start disabled with a reason when the app has no unit (today it fails with “Unit not found”); `pause`/`resume`
+- Done: an app whose unit does not exist shows “– no unit”; Start is disabled with a tooltip pointing to “Install unit…”, and a failed start on a missing unit says the same.
+- Planned: `pause`/`resume`
   (SIGSTOP/SIGCONT, state `paused`); follow mode for logs.
 - Single mode: system units run as the login user with passwordless sudo. Adopted apps keep their own unit names; units
   created by raspi are named `<app>.service`.

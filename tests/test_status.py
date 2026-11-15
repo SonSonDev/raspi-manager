@@ -94,3 +94,23 @@ def test_web_page_shows_state_as_glyph_and_word(monkeypatch, tmp_path):
     )
     html = client.get("/").text
     assert "● running" in html and "game" in html
+
+
+def test_a_unit_that_does_not_exist_is_shown_as_no_unit_and_start_explains_it():
+    from raspi.services.actions import run_action
+
+    out = "@@APP game\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n"
+    (status,) = parse_status(out, APPS[:1])
+    assert status.state == "no-unit"
+    assert "LoadState" in build_status_script(APPS)
+
+    class Pi:
+        def run_script(self, host, script, timeout=20.0):
+            return RunResult(
+                True,
+                "Failed to start game.service: Unit game.service not found.\n"
+                "exit=5\nActiveState=inactive\n",
+            )
+
+    result = run_action(Host("pi", "10.0.0.1", "u"), APPS[0], "start", Pi())
+    assert not result.ok and "Install unit" in result.message

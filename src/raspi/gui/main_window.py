@@ -248,6 +248,8 @@ class MainWindow(
         self.btn_key.setEnabled(self.can_deploy_key())
         self.btn_install.setEnabled(self.can_install_app())
         self.btn_unit.setEnabled(self.can_install_unit())
+        self.btn_start.setToolTip(self.start_tooltip(state))
+        self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))
         declared = bool(row and row.app and row.app.env_files)

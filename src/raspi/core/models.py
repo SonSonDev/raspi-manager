@@ -37,6 +37,7 @@ class Host:
 class AppStatus:
     name: str
     unit: str
+    load: str = ""  # systemd LoadState ("not-found": the unit file does not exist)
     active: str = "unknown"  # systemd ActiveState
     sub: str = ""  # systemd SubState
     enabled: str = ""  # systemd UnitFileState
@@ -50,6 +51,8 @@ class AppStatus:
     @property
     def state(self) -> str:
         """Collapse systemd states into the UI states (see docs/DESIGN.md)."""
+        if self.load == "not-found":
+            return "no-unit"
         if self.active == "active":
             return "running"
         if self.active == "failed":

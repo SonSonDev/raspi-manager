@@ -156,7 +156,7 @@ class FleetModel(QAbstractTableModel):
 
     def _text(self, row: Row, col: int, state: str, pending: str | None) -> str:
         if col == 0:
-            return f"{STATE_GLYPH[state]} {pending or state}"
+            return f"{STATE_GLYPH[state]} {pending or state.replace('-', ' ')}"
         if row.app is None:
             return {1: "no app configured", 2: row.host.name}.get(col, "")
         if col == 1:

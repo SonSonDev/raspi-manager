@@ -52,6 +52,10 @@ def run_action(
     if not result.ok:
         return ActionResult(False, result.error, script=script)
     ok, message, state = parse_action(result.stdout)
+    if not ok and "not found" in message.lower():
+        message += (
+            " -- the app has no systemd unit yet: create it with “Install unit…”."
+        )
     if not ok and "password" in message.lower():
         message += " -- passwordless sudo is required for the Pi user."
     return ActionResult(

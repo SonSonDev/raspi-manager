@@ -29,6 +29,21 @@ class InstallMixin:
         row = self.selected()
         return bool(row and row.app and row.app.run and self.can_install_app())
 
+    def start_tooltip(self, state: str) -> str:
+        if state == "no-unit":
+            return "This app has no systemd unit yet: create it with “Install unit…”"
+        return "Start (Ctrl+S)"
+
+    def unit_tooltip(self) -> str:
+        row = self.selected()
+        if not row or not row.app:
+            return "Select an app first"
+        if not row.app.run:
+            return "This app has no run command: open “Install app…” to set it"
+        if not self.can_install_app():
+            return "The Pi must be reachable"
+        return "Create and enable the app's systemd unit (it is not started)"
+
     # --- clone and build -----------------------------------------------------------
     def install_app_form(self) -> None:
         host = self._live_host_of_selection()
