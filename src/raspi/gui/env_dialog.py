@@ -20,13 +20,13 @@ from PySide6.QtWidgets import (
 
 from raspi import APP_NAME
 from raspi.config import envstore
-from raspi.config.loader import ConfigError, load_hosts
-from raspi.config.writer import add_env_file, remove_env_file
 from raspi.core.env import EnvError, check_pair, diff_env
 from raspi.core.models import AppRef, EnvFile, Host
 from raspi.gui.add_env_dialog import AddEnvFileDialog
+from raspi.gui.declare import run_declaration
 from raspi.gui.workers import submit
 from raspi.services.actions import run_action
+from raspi.services.declare import declare_env_file, forget_env_file
 from raspi.services.env import RemoteEnv, push, read_remote
 from raspi.ssh.transport import Transport
 
@@ -62,11 +62,17 @@ class _ValueDelegate(QStyledItemDelegate):
 
 class EnvDialog(QDialog):
     def __init__(
-        self, host: Host, app: AppRef, transport: Transport, parent=None
+        self,
+        host: Host,
+        app: AppRef,
+        transport: Transport,
+        parent=None,
+        on_pi: bool = False,
     ) -> None:
         super().__init__(parent)
         assert app.env_files
         self._host, self._app, self._transport = host, app, transport
+        self._on_pi = on_pi  # the app list lives in the Pi's apps.yaml, not hosts.yaml
         self._env: EnvFile = app.env_files[0]
         self._remote: RemoteEnv | None = None
         self._dirty = False
@@ -157,19 +163,6 @@ class EnvDialog(QDialog):
         self.file_picker.setCurrentIndex(index)
         self.file_picker.blockSignals(False)
 
-    def _reload_app(self) -> bool:
-        """Re-read hosts.yaml after it was edited; False if the app disappeared."""
-        try:
-            for host in load_hosts():
-                if host.name == self._host.name:
-                    for app in host.apps:
-                        if app.name == self._app.name:
-                            self._app = app
-                            return True
-        except ConfigError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
-        return False
-
     def add_file(self) -> None:
         dialog = AddEnvFileDialog(
             self._host,
@@ -178,23 +171,25 @@ class EnvDialog(QDialog):
             {e.label for e in self._app.env_files},
             {e.path for e in self._app.env_files},
             self,
+            on_pi=self._on_pi,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
             return
         label, path = dialog.result_value
-        try:
-            add_env_file(self._host.name, self._app.name, label, path)
-        except ConfigError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
-            return
-        if self._reload_app():
-            self._fill_picker(self._env.label)
-            index = self.file_picker.findData(label)
-            if index >= 0:
-                self.file_picker.setCurrentIndex(index)  # asks before dropping edits
-        self.note.setText(
-            f"Declared {path} as “{label}” (saved in ~/.raspi/hosts.yaml)."
+        result = run_declaration(
+            lambda: declare_env_file(
+                self._host, self._app.name, label, path, self._transport, self._on_pi
+            )
         )
+        if not result.ok or result.app is None:
+            QMessageBox.warning(self, APP_NAME, result.message)
+            return
+        self._app = result.app
+        self._fill_picker(self._env.label)
+        index = self.file_picker.findData(label)
+        if index >= 0:
+            self.file_picker.setCurrentIndex(index)  # asks before dropping edits
+        self.note.setText(f"Declared {path} as “{label}”. {result.message}")
 
     def forget_file(self) -> None:
         if (
@@ -207,15 +202,23 @@ class EnvDialog(QDialog):
             != QMessageBox.StandardButton.Yes
         ):
             return
-        try:
-            remove_env_file(self._host.name, self._app.name, self._env.label)
-        except ConfigError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
+        result = run_declaration(
+            lambda: forget_env_file(
+                self._host,
+                self._app.name,
+                self._env.label,
+                self._transport,
+                self._on_pi,
+            )
+        )
+        if not result.ok:
+            QMessageBox.warning(self, APP_NAME, result.message)
             return
         self._dirty = False
-        if not self._reload_app() or not self._app.env_files:
+        if result.app is None or not result.app.env_files:
             self.close()
             return
+        self._app = result.app
         self._env = self._app.env_files[0]
         self._fill_picker(self._env.label)
         self._update_header()

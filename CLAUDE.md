@@ -39,6 +39,7 @@
 - UI changes: screenshots at 390 / 768 / 1280 px, light + dark.
 
 ## Data safety & security
+- The Cloudflare API token lives only in the Windows Credential Manager (keyring); never print, log, store in files/tests/messages. Claude does not read it or call the real Cloudflare API unless the developer asks; changes to Cloudflare go through the GUI with a preview.
 - Never commit secrets: `~/.raspi/` (env files, Cloudflare API token, tunnel tokens) lives outside the repo; `.gitignore` guards stray `.env`/tokens.
 - Environment values are secrets: never print, log, put in tooltips/labels/exceptions or tests' failure messages; only variable names and counts. When checking real env files, print key names only.
 - Remote env files `chmod 600`; deploy keys read-only, one per repo; SSH host keys verified; no password auth.

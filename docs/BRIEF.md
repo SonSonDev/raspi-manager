@@ -16,4 +16,4 @@
 | Cloudflare API token scope and tunnel/DNS API behave as documented | Routing feature blocked | Prototype `route add` on a test hostname | open |
 | Discord Activity needs only a public HTTPS hostname (+ WebSocket) routed to the app | Extra routing features needed | Check Discord Activities docs when routing the game | open (not yet researched) |
 | Building deps (Python wheels, Node) on arm64 Pi is fast enough | Slow deploys | Measure on first real deploy | open |
-| `.env` files exist only on the PC | Loss if disk dies | Accepted; add backup command later | accepted |
+| `.env` files exist only on the PC | Loss if disk dies | Accepted; add backup command later | mitigated: the Pi's own .env stays the reference and its app inventory lives on the Pi (see DECISIONS 2026-11-14) |

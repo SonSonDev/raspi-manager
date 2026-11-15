@@ -14,6 +14,7 @@ import yaml
 from raspi.config.loader import (
     ConfigError,
     check_env_path,
+    check_host,
     check_label,
     parse_hosts,
     raspi_home,
@@ -53,6 +54,7 @@ def _store(app: dict, files: list[dict]) -> None:
 
 def _write(path: Path, data: dict) -> None:
     parse_hosts(data)  # raises ConfigError before we touch the file
+    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         backup = path.with_name(path.name + ".bak")
         backup.write_bytes(path.read_bytes())
@@ -74,6 +76,48 @@ def _load(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ConfigError("hosts.yaml must contain a 'hosts:' list")
     return data
+
+
+def add_host(name: str, address: str, user: str, path: Path | None = None) -> None:
+    """Register a Pi; creates hosts.yaml (and ~/.raspi) on first use. Nothing touches the Pi."""
+    name, address, user = check_host(name, address, user)
+    target = _hosts_path(path)
+    if target.exists():
+        data = _load(target)
+        if not isinstance(data.get("hosts"), list):
+            raise ConfigError("hosts.yaml must contain a 'hosts:' list")
+    else:
+        data = {"hosts": []}
+    if any(h.get("name") == name for h in data["hosts"]):
+        raise ConfigError(f"A Pi named '{name}' already exists")
+    data["hosts"].append({"name": name, "address": address, "user": user})
+    _write(target, data)
+
+
+def _find_host(data: dict, name: str) -> dict:
+    for h in data.get("hosts", []):
+        if h.get("name") == name:
+            return h
+    raise ConfigError(f"Unknown host '{name}'")
+
+
+def update_host(name: str, address: str, user: str, path: Path | None = None) -> None:
+    """Change address/user of a Pi. The name is its identity (env copies, tunnels): kept."""
+    _, address, user = check_host(name, address, user)
+    target = _hosts_path(path)
+    data = _load(target)
+    entry = _find_host(data, name)
+    entry["address"], entry["user"] = address, user
+    _write(target, data)
+
+
+def remove_host(name: str, path: Path | None = None) -> None:
+    """Forget a Pi and its declared apps in hosts.yaml. The Pi and local env copies stay."""
+    target = _hosts_path(path)
+    data = _load(target)
+    _find_host(data, name)
+    data["hosts"] = [h for h in data["hosts"] if h.get("name") != name]
+    _write(target, data)
 
 
 def add_env_file(

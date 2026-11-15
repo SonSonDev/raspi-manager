@@ -32,6 +32,7 @@ class AddEnvFileDialog(QDialog):
         taken_labels: set[str],
         taken_paths: set[str],
         parent=None,
+        on_pi: bool = False,
     ) -> None:
         super().__init__(parent)
         self._app, self._taken_labels, self._taken_paths = (
@@ -45,7 +46,13 @@ class AddEnvFileDialog(QDialog):
 
         intro = QLabel(
             f"Which file does <b>{app.name}</b> read its variables from? "
-            "Nothing is created or changed on the Pi."
+            + (
+                "The declaration is saved in ~/.raspi/apps.yaml on the Pi (the "
+                "previous copy is kept as apps.yaml.bak); the .env file itself is "
+                "not touched."
+                if on_pi
+                else "Nothing is created or changed on the Pi."
+            )
         )
         intro.setWordWrap(True)
         self.path_box = QComboBox()

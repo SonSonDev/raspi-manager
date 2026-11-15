@@ -10,6 +10,9 @@ python -m uv run raspi-manager status      # needs ~/.raspi/hosts.yaml and a wor
 python -m uv run raspi-manager web         # http://127.0.0.1:8765
 ```
 
+The `.venv` is tied to the Python it was built from. After a Windows reset, a new user name or a Python move/upgrade, rebuild it with
+`powershell -ExecutionPolicy Bypass -File D:\Dev\setup-python-envs.ps1 -Only raspi` (uses the installed Python, never downloads one).
+
 ## What it will do
 - Deploy apps (Python, Node) from private GitHub repos to one or more Pi, pinned to a tag, branch or commit, with rollback.
 - Run them permanently as systemd services: start, stop, pause, resume, restart, logs.
@@ -25,7 +28,9 @@ powershell -File scripts\install-shortcut.ps1   # creates the "raspi-manager" De
 ```
 Live table of your apps (refreshed every 10 s), Restart / Start / Stop with confirmation, Logs panel, light/dark following Windows, and an **Environment…** editor (Ctrl+E) for each app that has an `env_file` in `~/.raspi/hosts.yaml`: masked values, import from the Pi, save locally, push (optionally restarting the app).
 
-You do not have to edit the YAML for env files: with an app selected, **Environment…** offers to detect its `.env*` files (read-only) and declare them; **Add file…** / **Forget file** inside the window manage them later (raspi then rewrites `hosts.yaml`, keeping a `.bak` copy). Example `~/.raspi/hosts.yaml` entries (one env file, or several with labels):
+You do not have to edit the YAML for env files: with an app selected, **Environment…** offers to detect its `.env*` files (read-only) and declare them; **Add file…** / **Forget file** inside the window manage them later (raspi then rewrites `hosts.yaml`, keeping a `.bak` copy). The **Cloudflare…** window (Ctrl+Shift+C) stores your API token in the Windows Credential Manager, lists your tunnels and routes, and adds a route (hostname → local port on a Pi) after showing exactly what will change in your Cloudflare account.
+
+Example `~/.raspi/hosts.yaml` entries (one env file, or several with labels):
 ```yaml
 - {name: example-bot, unit: example-bot.service, path: /home/pi/dev/Example-Bot, env_file: /home/pi/dev/Example-Bot/.env}
 - {name: web-game, unit: web-game.service, env_files: [{label: server, path: /home/pi/dev/web-game/server/.env}, {label: client, path: /home/pi/dev/web-game/.env}]}

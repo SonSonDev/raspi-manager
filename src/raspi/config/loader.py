@@ -21,6 +21,10 @@ class ConfigError(Exception):
     """Human-readable configuration problem."""
 
 
+class HostsFileMissing(ConfigError):
+    """hosts.yaml does not exist yet: a first-run state, not a broken config."""
+
+
 def raspi_home() -> Path:
     return Path(os.environ.get("RASPI_HOME") or Path.home() / ".raspi")
 
@@ -58,6 +62,15 @@ def check_env_path(value: str) -> str:
     return _env_path(value)
 
 
+def check_host(name: str, address: str, user: str) -> tuple[str, str, str]:
+    """Validate a Pi typed by the user (these values end up in ssh arguments)."""
+    return (
+        _check(_NAME, name, "host name (letters, digits, . _ -)"),
+        _check(_ADDR, address, "address (hostname or IP)"),
+        _check(_USER, user, "user (lowercase letters, digits, _ -)"),
+    )
+
+
 def check_label(value: str) -> str:
     return _check(_NAME, value, "label (letters, digits, . _ -)")
 
@@ -81,20 +94,39 @@ def _env_files(app: dict) -> tuple[EnvFile, ...]:
     return tuple(files)
 
 
+MANIFEST_VERSION = 1
+
+
+def _apps(items: object) -> tuple[AppRef, ...]:
+    if not isinstance(items, list) or not all(isinstance(a, dict) for a in items):
+        raise ConfigError("'apps' must be a list of {name, unit, ...} entries")
+    apps = tuple(
+        AppRef(
+            name=_check(_NAME, a.get("name"), "app name"),
+            unit=_check(_UNIT, a.get("unit"), "unit (must end with .service)"),
+            path=_check(_PATH, a["path"], "app path") if a.get("path") else None,
+            env_files=_env_files(a),
+        )
+        for a in items
+    )
+    if len({a.name for a in apps}) != len(apps):
+        raise ConfigError("Duplicate app name in the apps list")
+    return apps
+
+
+def parse_manifest(data: object) -> tuple[AppRef, ...]:
+    """Apps listed in a Pi's ~/.raspi/apps.yaml (already loaded; the Pi is untrusted input)."""
+    if not isinstance(data, dict) or data.get("version") != MANIFEST_VERSION:
+        raise ConfigError(f"apps.yaml must start with 'version: {MANIFEST_VERSION}'")
+    return _apps(data.get("apps") or [])
+
+
 def parse_hosts(data: object) -> list[Host]:
     if not isinstance(data, dict) or not isinstance(data.get("hosts"), list):
         raise ConfigError("hosts.yaml must contain a 'hosts:' list")
     hosts = []
     for h in data["hosts"]:
-        apps = tuple(
-            AppRef(
-                name=_check(_NAME, a.get("name"), "app name"),
-                unit=_check(_UNIT, a.get("unit"), "unit (must end with .service)"),
-                path=_check(_PATH, a["path"], "app path") if a.get("path") else None,
-                env_files=_env_files(a),
-            )
-            for a in h.get("apps", [])
-        )
+        apps = _apps(h.get("apps") or [])
         hosts.append(
             Host(
                 name=_check(_NAME, h.get("name"), "host name"),
@@ -109,7 +141,9 @@ def parse_hosts(data: object) -> list[Host]:
 def load_hosts(path: Path | None = None) -> list[Host]:
     path = path or raspi_home() / "hosts.yaml"
     if not path.exists():
-        raise ConfigError(
-            f"{path} not found. Create it with a 'hosts:' list (see docs/SPEC.md F1)."
+        raise HostsFileMissing(
+            f"{path} not found. Add a Pi from the app (Add a Pi…) "
+            "or run: raspi host add NAME ADDRESS USER"
         )
-    return parse_hosts(yaml.safe_load(path.read_text(encoding="utf-8")))
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return [] if data is None else parse_hosts(data)  # an empty file means no Pi yet

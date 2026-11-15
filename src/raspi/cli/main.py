@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import sys
+from typing import Annotated
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from raspi.cli.route import route_app
 from raspi.config.loader import ConfigError, load_hosts
+from raspi.config.writer import add_host, remove_host, update_host
 from raspi.core.models import Host
+from raspi.core.runtime import RuntimeError_
 from raspi.services.actions import LookupError_, find_app, read_logs, run_action
+from raspi.services.adopt import add_apps, candidate_to_app, scan_host
+from raspi.services.inventory import plan_publish, publish, resolve_all
+from raspi.services.provision import doctor, provision
+from raspi.services.runtime import install_node, plan_node
 from raspi.services.status import collect_all
 from raspi.ssh.transport import SshTransport
 
@@ -18,6 +28,9 @@ app = typer.Typer(
 
 @app.callback()
 def _open_window_by_default(ctx: typer.Context) -> None:
+    for stream in (sys.stdout, sys.stderr):  # cp1252 consoles cannot print ✓ / ✕
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     if ctx.invoked_subcommand is None:
         from raspi.gui.app import run
 
@@ -46,6 +59,11 @@ def _hosts() -> list[Host]:
     except ConfigError as exc:
         typer.secho(str(exc), fg="red", err=True)
         raise typer.Exit(1) from exc
+
+
+def _live_hosts() -> list[Host]:
+    """Hosts with the apps their Pi really declares (falls back to hosts.yaml)."""
+    return resolve_all(_hosts(), SshTransport())
 
 
 def _resolve(hosts: list[Host], app_name: str, host_name: str | None):
@@ -98,7 +116,7 @@ def status() -> None:
 def _act(
     action: str, app_name: str, host_name: str | None, yes: bool, dry_run: bool
 ) -> None:
-    host, ref = _resolve(_hosts(), app_name, host_name)
+    host, ref = _resolve(_live_hosts(), app_name, host_name)
     if not dry_run and action != "start" and not yes:
         typer.confirm(f"{action} {ref.name} on {host.name}?", abort=True)
     result = run_action(host, ref, action, SshTransport(), dry_run=dry_run)
@@ -156,12 +174,230 @@ def logs(
     lines: int = typer.Option(50, "-n", "--lines", help="Number of lines (max 1000)"),
 ) -> None:
     """Show the last journal lines of an app (read-only)."""
-    h, ref = _resolve(_hosts(), app_name, host)
+    h, ref = _resolve(_live_hosts(), app_name, host)
     result = read_logs(h, ref, SshTransport(), lines)
     if not result.ok:
         typer.secho(f"✕ {result.message}", fg="red", err=True)
         raise typer.Exit(1)
     typer.echo(result.message)
+
+
+host_app = typer.Typer(help="Manage the Pi registered in ~/.raspi/hosts.yaml.")
+app.add_typer(host_app, name="host")
+app.add_typer(route_app, name="route")
+
+
+@host_app.command("add")
+def host_add(name: str, address: str, user: str) -> None:
+    """Register a Pi (creates hosts.yaml if needed). Nothing is sent to the Pi."""
+    try:
+        add_host(name, address, user)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg="red", err=True)
+        raise typer.Exit(1) from exc
+    typer.secho(f"✓ Added {name} ({user}@{address})", fg="green")
+
+
+@host_app.command("ls")
+def host_ls() -> None:
+    """List the registered Pi and how many apps each has (reads hosts.yaml only)."""
+    for h in _hosts():
+        typer.echo(f"{h.name}\t{h.user}@{h.address}\t{len(h.apps)} app(s)")
+
+
+@host_app.command("edit")
+def host_edit(
+    name: str,
+    address: str | None = typer.Option(None, help="New address"),
+    user: str | None = typer.Option(None, help="New login user"),
+) -> None:
+    """Change the address and/or user of a Pi (the name is fixed)."""
+    current = next((h for h in _hosts() if h.name == name), None)
+    if current is None:
+        typer.secho(f"Unknown host '{name}'", fg="red", err=True)
+        raise typer.Exit(1)
+    try:
+        update_host(name, address or current.address, user or current.user)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg="red", err=True)
+        raise typer.Exit(1) from exc
+    typer.secho(f"✓ Updated {name}", fg="green")
+
+
+@host_app.command("rm")
+def host_rm(
+    name: str,
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+) -> None:
+    """Forget a Pi and its declared apps in hosts.yaml (the Pi itself is not touched)."""
+    current = next((h for h in _hosts() if h.name == name), None)
+    if current is None:
+        typer.secho(f"Unknown host '{name}'", fg="red", err=True)
+        raise typer.Exit(1)
+    if not yes:
+        apps = ", ".join(a.name for a in current.apps) or "no app"
+        typer.confirm(f"Remove {name} ({apps}) from hosts.yaml?", abort=True)
+    try:
+        remove_host(name)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg="red", err=True)
+        raise typer.Exit(1) from exc
+    typer.secho(f"✓ Removed {name}", fg="green")
+
+
+@host_app.command("publish")
+def host_publish(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, write nothing"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+) -> None:
+    """Write the apps declared in hosts.yaml to ~/.raspi/apps.yaml on that Pi (first time only)."""
+    current = next((h for h in _hosts() if h.name == name), None)
+    if current is None:
+        typer.secho(f"Unknown host '{name}'", fg="red", err=True)
+        raise typer.Exit(1)
+    transport = SshTransport()
+    plan = plan_publish(current, transport)
+    if not plan.ok:
+        typer.secho(plan.message, fg="red", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Would write {plan.path} on {name}:\n{plan.content}")
+    if not dry_run and not yes:
+        typer.confirm(f"Write it on {name}?", abort=True)
+    result = publish(current, plan, transport, dry_run=dry_run)
+    if not result.ok:
+        typer.secho(f"✕ {result.message}", fg="red", err=True)
+        raise typer.Exit(1)
+    typer.secho(f"✓ {result.message}", fg="green")
+
+
+def _live_host(name: str) -> tuple[Host, Host]:
+    """(host as configured, host with the apps its Pi really declares)."""
+    current = next((h for h in _hosts() if h.name == name), None)
+    if current is None:
+        typer.secho(f"Unknown host '{name}'", fg="red", err=True)
+        raise typer.Exit(1)
+    return current, resolve_all([current], SshTransport())[0]
+
+
+@host_app.command("scan")
+def host_scan(name: str) -> None:
+    """List services run by the login user that raspi-manager does not manage yet (read-only)."""
+    _, live = _live_host(name)
+    scan = scan_host(live, SshTransport())
+    if not scan.ok:
+        typer.secho(scan.message, fg="red", err=True)
+        raise typer.Exit(1)
+    for c in scan.candidates:
+        typer.echo(f"{c.name}\t{c.state}\t{c.repo or c.workdir or '-'}\t{c.command}")
+    if not scan.candidates:
+        typer.echo("Nothing to add.")
+
+
+@host_app.command("adopt")
+def host_adopt(
+    name: str,
+    units: Annotated[
+        list[str], typer.Argument(help="App names or unit names from `scan`")
+    ],
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, write nothing"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+) -> None:
+    """Add scanned services to the app inventory of that Pi (~/.raspi/apps.yaml)."""
+    current, live = _live_host(name)
+    transport = SshTransport()
+    scan = scan_host(live, transport)
+    if not scan.ok:
+        typer.secho(scan.message, fg="red", err=True)
+        raise typer.Exit(1)
+    by_key = {key: c for c in scan.candidates for key in (c.name, c.unit)}
+    unknown = [u for u in units if u not in by_key]
+    if unknown:
+        typer.secho(f"Not found by the scan: {', '.join(unknown)}", fg="red", err=True)
+        raise typer.Exit(1)
+    apps = tuple(dict.fromkeys(candidate_to_app(by_key[u]) for u in units))
+    for a in apps:
+        typer.echo(f"{a.name}\t{a.unit}\t{a.path or '-'}")
+    if not dry_run and not yes:
+        typer.confirm(
+            f"Add {len(apps)} app(s) to ~/.raspi/apps.yaml on {name}?", abort=True
+        )
+    result = add_apps(current, apps, transport, dry_run=dry_run)
+    if not result.ok:
+        typer.secho(f"✕ {result.message}", fg="red", err=True)
+        raise typer.Exit(1)
+    typer.secho(f"✓ {result.message}", fg="green")
+
+
+@host_app.command("doctor")
+def host_doctor(name: str) -> None:
+    """Check what the Pi needs to run apps (read-only)."""
+    current, _ = _live_host(name)
+    report = doctor(current, SshTransport())
+    if not report.ok:
+        typer.secho(report.message, fg="red", err=True)
+        raise typer.Exit(1)
+    for c in report.checks:
+        glyph = "✓" if c.ok else ("✕" if c.required else "–")
+        typer.echo(f"{glyph} {c.label}: {c.detail}" + ("" if c.ok else f"  → {c.fix}"))
+    if report.steps:
+        typer.echo(f"`raspi host provision {name}` can fix: " + "; ".join(report.steps))
+    if not report.fit:
+        raise typer.Exit(1)
+
+
+@host_app.command("provision")
+def host_provision(
+    name: str,
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, change nothing"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+) -> None:
+    """Install what the Pi lacks (git, curl via apt; the ~/apps folder)."""
+    current, _ = _live_host(name)
+    transport = SshTransport()
+    report = doctor(current, transport)
+    if not report.ok:
+        typer.secho(report.message, fg="red", err=True)
+        raise typer.Exit(1)
+    for step in report.steps:
+        typer.echo(f"  - {step}")
+    if report.steps and not dry_run and not yes:
+        typer.confirm(f"Apply these changes on {name}?", abort=True)
+    result = provision(current, transport, dry_run=dry_run)
+    if dry_run and result.script:
+        typer.echo(f"\nScript run on {name}:\n{result.script}")
+    if not result.ok:
+        typer.secho(f"✕ {result.message}", fg="red", err=True)
+        raise typer.Exit(1)
+    typer.secho(f"✓ {result.message}", fg="green")
+
+
+@host_app.command("install-node")
+def host_install_node(
+    name: str,
+    major: Annotated[str, typer.Argument(help="Node major version, e.g. 22")] = "22",
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, change nothing"),
+    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+) -> None:
+    """Install Node.js on the Pi through nvm (pinned installer, checksum verified)."""
+    current, _ = _live_host(name)
+    transport = SshTransport()
+    try:
+        steps, _ = plan_node(current, transport, major)
+    except RuntimeError_ as exc:
+        typer.secho(str(exc), fg="red", err=True)
+        raise typer.Exit(1) from exc
+    for step in steps:
+        typer.echo(f"  - {step}")
+    if not dry_run and not yes:
+        typer.confirm(f"Apply these changes on {name}?", abort=True)
+    ok, message, script = install_node(current, transport, major, dry_run=dry_run)
+    if dry_run and script:
+        typer.echo(f"\nScript run on {name}:\n{script}")
+    if not ok:
+        typer.secho(f"✕ {message}", fg="red", err=True)
+        raise typer.Exit(1)
+    typer.secho(f"✓ {message}", fg="green")
 
 
 @app.command()

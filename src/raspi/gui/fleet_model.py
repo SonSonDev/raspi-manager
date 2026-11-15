@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QBrush, QColor, QFont
@@ -53,11 +54,23 @@ class FleetModel(QAbstractTableModel):
     def set_hosts(self, hosts: list[Host]) -> None:
         """New configuration (e.g. an env file was declared); live results are kept."""
         self._hosts = hosts
+        names = {h.name for h in hosts}
+        self._results = {n: r for n, r in self._results.items() if n in names}
         self._update_rows()
 
     def set_host_status(self, hs: HostStatus) -> None:
         self._results[hs.host.name] = hs
         self._update_rows()
+
+    def host_status(self, name: str) -> HostStatus | None:
+        return self._results.get(name)
+
+    def status_summary(self, now: datetime) -> str:
+        """Status bar text: last check time, plus why a Pi's apps.yaml was ignored."""
+        notes = "; ".join(
+            r.inventory_error for r in self._results.values() if r.inventory_error
+        )
+        return f"Last checked {now:%H:%M:%S}" + (f" - {notes}" if notes else "")
 
     def set_pending(self, key: tuple[str, str], label: str | None) -> None:
         if label:
@@ -68,8 +81,9 @@ class FleetModel(QAbstractTableModel):
 
     def _build(self) -> list[Row]:
         rows: list[Row] = []
-        for host in self._hosts:
-            hs = self._results.get(host.name)
+        for configured in self._hosts:
+            hs = self._results.get(configured.name)
+            host = hs.host if hs else configured  # the Pi's own app list wins
             if not host.apps:
                 rows.append(Row(host, None, None, hs))
             by_name = {a.name: a for a in hs.apps} if hs else {}

@@ -96,7 +96,8 @@ def stylesheet(t: Tokens) -> str:
     QCheckBox::indicator:checked {{ background: {t.accent}; border-color: {t.accent}; }}
     QCheckBox:focus {{ outline: 0; }}
     QCheckBox::indicator:focus {{ border: 2px solid {t.accent}; }}
-    QLineEdit {{ border: 1px solid {t.accent}; padding: 2px 6px; background: {t.bg}; color: {t.ink}; }}
+    QLineEdit, QComboBox {{ border: 1px solid {t.muted}; border-radius: 2px; padding: 2px 6px; background: {t.bg}; color: {t.ink}; }}
+    QLineEdit:focus, QComboBox:focus {{ border: 2px solid {t.accent}; }}
     QTableView {{ border: 0; gridline-color: {t.rule}; selection-background-color: {t.selected}; selection-color: {t.ink}; alternate-background-color: {t.bg}; }}
     QTableView::item {{ padding: 0 8px; border-bottom: 1px solid {t.rule}; }}
     QTableView::item:hover {{ background: {t.row_alt}; }}
@@ -109,6 +110,8 @@ def stylesheet(t: Tokens) -> str:
     QDockWidget {{ font-weight: 600; }}
     QDockWidget::title {{ padding: 6px 8px; border-bottom: 1px solid {t.rule}; background: {t.bg}; }}
     QLabel#banner {{ color: {t.err}; padding: 8px 12px; border-left: 3px solid {t.err}; }}
+    QFrame#setup {{ border-left: 3px solid {t.rule}; }}
+    QLabel#setupText {{ padding: 8px 12px; font-family: {MONO}; font-size: 9pt; }}
     QScrollBar:vertical {{ background: {t.bg}; width: 12px; }}
     QScrollBar::handle:vertical {{ background: {t.rule}; min-height: 24px; border-radius: 2px; }}
     QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}

@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from raspi import APP_NAME
-from raspi.config.loader import ConfigError, load_hosts
+from raspi.config.loader import ConfigError, HostsFileMissing, load_hosts
 from raspi.gui.main_window import MainWindow
 from raspi.gui.theme import DARK, LIGHT, stylesheet
 from raspi.ssh.transport import SshTransport
@@ -24,6 +24,8 @@ def run() -> int:
     app.setApplicationName(APP_NAME)
     try:
         hosts, error = load_hosts(), ""
+    except HostsFileMissing:  # first run: the window explains how to add a Pi
+        hosts, error = [], ""
     except ConfigError as exc:
         hosts, error = [], str(exc)
 

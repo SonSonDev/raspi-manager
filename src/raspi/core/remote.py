@@ -92,6 +92,35 @@ def build_env_read_script(path: str) -> str:
     )
 
 
+MANIFEST_PATH = ".raspi/apps.yaml"  # relative to the login user's home on the Pi
+
+
+def build_manifest_read_script() -> str:
+    """Read-only: print the Pi's app inventory (same marker protocol as the env read)."""
+    return (
+        f'f="$HOME/{MANIFEST_PATH}"\n'
+        f'if [ -f "$f" ]; then echo {ENV_EXISTS}; cat "$f"; else echo {ENV_MISSING}; fi\n'
+    )
+
+
+def build_manifest_push_script(content: str) -> str:
+    """Atomically write ~/.raspi/apps.yaml (mode 600), keeping one `.bak`. Content as base64."""
+    b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    return (
+        "set -e\n"
+        "umask 077\n"
+        'dir="$HOME/.raspi"\n'
+        'mkdir -p "$dir"\n'
+        'target="$dir/apps.yaml"\n'
+        'tmp=$(mktemp "$dir/.apps.XXXXXX")\n'
+        f'printf %s {shlex.quote(b64)} | base64 -d > "$tmp"\n'
+        '[ ! -e "$target" ] || cp -p "$target" "$target.bak"\n'
+        'chmod 600 "$tmp"\n'
+        'mv "$tmp" "$target"\n'
+        'echo "written: $target"\n'
+    )
+
+
 def parse_env_read(output: str) -> str | None:
     """File content, or None when the file does not exist."""
     first, _, rest = output.partition("\n")

@@ -65,3 +65,7 @@ class HostStatus:
     reachable: bool = True
     error: str = ""
     apps: list[AppStatus] = field(default_factory=list)
+    inventory: str = (
+        "pc"  # where `host.apps` came from: "pi" (apps.yaml) or "pc" (hosts.yaml)
+    )
+    inventory_error: str = ""  # why the Pi's apps.yaml was ignored, if it was

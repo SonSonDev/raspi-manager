@@ -8,7 +8,6 @@ from PySide6.QtCore import QItemSelectionModel, Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QDialog,
     QDockWidget,
     QLabel,
     QMainWindow,
@@ -22,12 +21,16 @@ from PySide6.QtWidgets import (
 )
 
 from raspi import APP_NAME
-from raspi.config.loader import ConfigError, load_hosts
-from raspi.config.writer import add_env_file
 from raspi.core.models import Host, HostStatus
-from raspi.gui.add_env_dialog import AddEnvFileDialog
-from raspi.gui.env_dialog import EnvDialog
+from raspi.gui.adopt_actions import AdoptMixin
+from raspi.gui.cloudflare_dialog import CloudflareDialog
+from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import FleetModel, Row
+from raspi.gui.host_actions import HostActionsMixin
+from raspi.gui.provision_actions import ProvisionMixin
+from raspi.gui.publish_actions import PublishMixin
+from raspi.gui.route_actions import RouteMixin
+from raspi.gui.setup_panel import SetupPanel
 from raspi.gui.theme import Tokens
 from raspi.gui.workers import submit
 from raspi.services.actions import ActionResult, read_logs, run_action
@@ -38,7 +41,15 @@ REFRESH_MS = 10_000
 VERB = {"start": "starting", "stop": "stopping", "restart": "restarting"}
 
 
-class MainWindow(QMainWindow):
+class MainWindow(
+    HostActionsMixin,
+    PublishMixin,
+    AdoptMixin,
+    ProvisionMixin,
+    EnvActionsMixin,
+    RouteMixin,
+    QMainWindow,
+):
     def __init__(
         self,
         hosts: list[Host],
@@ -78,14 +89,16 @@ class MainWindow(QMainWindow):
         self.banner = QLabel(config_error)
         self.banner.setObjectName("banner")
         self.banner.setWordWrap(True)
-        self.banner.setVisible(bool(config_error))
         self.banner.setAccessibleName("Configuration error")
+        self.setup_panel = SetupPanel()
+        self._show_banner(config_error, hosts)
 
         central = QWidget()
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.banner)
+        layout.addWidget(self.setup_panel)
         layout.addWidget(self.table)
         self.setCentralWidget(central)
 
@@ -123,6 +136,13 @@ class MainWindow(QMainWindow):
         bar = QToolBar("Actions")
         bar.setMovable(False)
         self.addToolBar(bar)
+        self.btn_add_host = self._button(
+            "Add a Pi…", self.add_host, "Ctrl+N", "primary"
+        )
+        self.btn_edit_host = self._button("Edit Pi…", self.edit_host, "Ctrl+Shift+E")
+        self.btn_remove_host = self._button(
+            "Remove Pi…", self.remove_host, "", "danger"
+        )
         self.btn_refresh = self._button("Refresh", self.refresh, "F5")
         self.btn_restart = self._button(
             "Restart", lambda: self.act("restart"), "Ctrl+R", "primary"
@@ -133,15 +153,34 @@ class MainWindow(QMainWindow):
         self.btn_stop = self._button("Stop", lambda: self.act("stop"), "", "danger")
         self.btn_logs = self._button("Logs", self.show_logs, "Ctrl+L")
         self.btn_env = self._button("Environment…", self.edit_env, "Ctrl+E")
+        self.btn_cloudflare = self._button(
+            "Cloudflare…", self.open_cloudflare, "Ctrl+Shift+C"
+        )
+        self.btn_publish = self._button("Publish apps to Pi…", self.publish_apps)
+        self.btn_scan = self._button("Scan apps…", self.scan_apps)
+        self.btn_check = self._button("Check Pi…", self.check_pi)
+        self.btn_route = self._button("Set up route…", self.setup_route)
+        for b in (
+            self.btn_add_host,
+            self.btn_edit_host,
+            self.btn_remove_host,
+            self.btn_check,
+            self.btn_scan,
+            self.btn_publish,
+        ):
+            bar.addWidget(b)
+        bar.addSeparator()
         for b in (
             self.btn_restart,
             self.btn_start,
             self.btn_stop,
             self.btn_logs,
             self.btn_env,
+            self.btn_route,
         ):
             bar.addWidget(b)
         bar.addSeparator()
+        bar.addWidget(self.btn_cloudflare)
         bar.addWidget(self.btn_refresh)
 
     def _build_logs_dock(self) -> None:
@@ -174,8 +213,15 @@ class MainWindow(QMainWindow):
                 | QItemSelectionModel.SelectionFlag.Rows,
             )
 
+    def selected_host(self) -> Host | None:
+        """Host of the selected row, also when the Pi has no app yet."""
+        rows = self.table.selectionModel().selectedRows()
+        return self.model.rows[rows[0].row()].host if rows else None
+
     @Slot()
     def _update_buttons(self, *_: object) -> None:
+        self.btn_edit_host.setEnabled(self.selected_host() is not None)
+        self.btn_remove_host.setEnabled(self.selected_host() is not None)
         row = self.selected()
         state = (
             self.model.state_at(self.table.selectionModel().selectedRows()[0].row())
@@ -186,6 +232,10 @@ class MainWindow(QMainWindow):
         self.btn_stop.setEnabled(state == "running")
         self.btn_start.setEnabled(state in ("stopped", "failed", "unknown"))
         self.btn_logs.setEnabled(bool(row))
+        self.btn_publish.setEnabled(self.can_publish())
+        self.btn_scan.setEnabled(self.can_scan())
+        self.btn_check.setEnabled(self.can_check_pi())
+        self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))
         declared = bool(row and row.app and row.app.env_files)
         self.btn_env.setToolTip(
@@ -218,7 +268,7 @@ class MainWindow(QMainWindow):
             self.select_key(selected.key)
         self._update_buttons()
         if not self._inflight:
-            self.status_label.setText(f"Last checked {datetime.now():%H:%M:%S}")
+            self.status_label.setText(self.model.status_summary(datetime.now()))
 
     def _on_status_failed(self, host_name: str, message: str) -> None:
         self._inflight.discard(host_name)
@@ -289,9 +339,9 @@ class MainWindow(QMainWindow):
         self._update_buttons()
 
     def _refresh_host(self, host_name: str) -> None:
-        host = self._hosts[host_name]
-        if host_name in self._inflight:
-            return
+        host = self._hosts.get(host_name)
+        if host is None or host_name in self._inflight:
+            return  # removed from the config while an action was running
         self._inflight.add(host_name)
         submit(
             lambda: collect_host(host, self._transport),
@@ -299,45 +349,9 @@ class MainWindow(QMainWindow):
             lambda msg: self._on_status_failed(host_name, msg),
         )
 
-    # --- environment ------------------------------------------------------------
-    def edit_env(self) -> None:
-        row = self.selected()
-        if not row or not row.app:
-            return
-        key, app = row.key, row.app
-        if not app.env_files:  # nothing declared yet: start by declaring a file
-            dialog = AddEnvFileDialog(
-                row.host, app, self._transport, set(), set(), self
-            )
-            if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
-                return
-            try:
-                add_env_file(row.host.name, app.name, *dialog.result_value)
-            except ConfigError as exc:
-                QMessageBox.warning(self, APP_NAME, str(exc))
-                return
-            if not self.reload_config():
-                return
-            self.select_key(key)
-            row = self.selected()
-            if not row or not row.app or not row.app.env_files:
-                return
-        EnvDialog(row.host, row.app, self._transport, self).exec()
-        self.reload_config()  # the dialog may have declared or forgotten files
-        self.select_key(key)
-        self._update_buttons()
-        self._refresh_host(key[0])
-
-    def reload_config(self) -> bool:
-        """Re-read hosts.yaml (edited from the app) and update the table."""
-        try:
-            hosts = load_hosts()
-        except ConfigError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
-            return False
-        self._hosts = {h.name: h for h in hosts}
-        self.model.set_hosts(hosts)
-        return True
+    # --- cloudflare ---------------------------------------------------------------
+    def open_cloudflare(self) -> None:
+        CloudflareDialog(list(self._hosts.values()), self).exec()
 
     # --- logs ---------------------------------------------------------------
     def show_logs(self) -> None:
