@@ -19,6 +19,9 @@ def render_manifest(apps: tuple[AppRef, ...]) -> str:
         entry: dict = {"name": app.name, "unit": app.unit}
         if app.path:
             entry["path"] = app.path
+        for field in ("repo", "build", "run"):
+            if getattr(app, field):
+                entry[field] = getattr(app, field)
         if app.env_files:
             entry["env_files"] = [
                 {"label": f.label, "path": f.path} for f in app.env_files

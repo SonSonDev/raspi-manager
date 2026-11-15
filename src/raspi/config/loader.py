@@ -8,6 +8,7 @@ from pathlib import Path
 
 import yaml
 
+from raspi.core.deploykey import DeployKeyError, check_repo
 from raspi.core.models import AppRef, EnvFile, Host
 
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -95,6 +96,24 @@ def _env_files(app: dict) -> tuple[EnvFile, ...]:
 
 
 MANIFEST_VERSION = 1
+_MAX_COMMAND = 500
+
+
+def check_repo_field(value: object) -> str:
+    try:
+        return check_repo(str(value))
+    except DeployKeyError as exc:
+        raise ConfigError(f"Invalid repo: {value!r} ({exc})") from exc
+
+
+def check_command(value: object, what: str) -> str:
+    """One-line shell command typed by the developer; it runs on the Pi, so it is shown first."""
+    text = value.strip() if isinstance(value, str) else ""
+    if not text or len(text) > _MAX_COMMAND or any(ord(c) < 32 for c in text):
+        raise ConfigError(
+            f"Invalid {what}: one line of at most {_MAX_COMMAND} characters"
+        )
+    return text
 
 
 def _apps(items: object) -> tuple[AppRef, ...]:
@@ -106,6 +125,11 @@ def _apps(items: object) -> tuple[AppRef, ...]:
             unit=_check(_UNIT, a.get("unit"), "unit (must end with .service)"),
             path=_check(_PATH, a["path"], "app path") if a.get("path") else None,
             env_files=_env_files(a),
+            repo=check_repo_field(a["repo"]) if a.get("repo") else None,
+            build=check_command(a["build"], "build command")
+            if a.get("build")
+            else None,
+            run=check_command(a["run"], "run command") if a.get("run") else None,
         )
         for a in items
     )

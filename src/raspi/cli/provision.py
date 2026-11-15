@@ -7,10 +7,13 @@ from typing import Annotated
 
 import typer
 
+from raspi.config.loader import ConfigError, parse_manifest
 from raspi.core.deploykey import clone_url, key_steps
+from raspi.core.install import InstallError
 from raspi.core.models import Host
 from raspi.core.runtime import RuntimeError_
 from raspi.services.deploykey import ensure_key, fetch_github_keys, verify_repo
+from raspi.services.install import install_app, plan_install
 from raspi.services.provision import doctor, provision
 from raspi.services.runtime import install_node, plan_node
 from raspi.ssh.transport import SshTransport
@@ -138,3 +141,46 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
         typer.secho(
             f"✓ {checked.message}  Clone with {clone_url(app_name, repo)}", fg="green"
         )
+
+    @host_app.command("install-app")
+    def host_install_app(
+        name: str,
+        app_name: Annotated[str, typer.Argument(metavar="APP")],
+        repo: str = typer.Option(..., "--repo", help="GitHub owner/name"),
+        build: str | None = typer.Option(None, "--build", help="Build command"),
+        run: str | None = typer.Option(
+            None, "--run", help="Start command (for the unit)"
+        ),
+        path: str | None = typer.Option(None, "--path", help="Folder on the Pi"),
+        dry_run: bool = typer.Option(
+            False, "--dry-run", help="Show it, change nothing"
+        ),
+        yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
+    ) -> None:
+        """Clone APP on the Pi through its deploy key, build it, add it to the inventory."""
+        entry = {"name": app_name, "unit": f"{app_name}.service", "repo": repo}
+        for key, value in (("build", build), ("run", run), ("path", path)):
+            if value:
+                entry[key] = value
+        try:
+            declared = parse_manifest({"version": 1, "apps": [entry]})[0]
+        except ConfigError as exc:
+            raise _fail(str(exc)) from exc
+        _, live = live_host(name)
+        transport = SshTransport()
+        try:
+            plan = plan_install(live, transport, declared)
+        except InstallError as exc:
+            raise _fail(str(exc)) from exc
+        for step in plan.steps:
+            typer.echo(f"  - {step}")
+        if dry_run:
+            typer.echo(f"\nScript run on {name}:\n{plan.script}")
+            typer.echo("Dry run: nothing was changed.")
+            return
+        if not yes:
+            typer.confirm(f"Apply these changes on {name}?", abort=True)
+        result = install_app(live, transport, plan)
+        if not result.ok:
+            raise _fail(f"✕ {result.message}")
+        typer.secho(f"✓ {result.message}", fg="green")

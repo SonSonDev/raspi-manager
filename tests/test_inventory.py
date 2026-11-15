@@ -268,3 +268,29 @@ def test_publish_button_follows_where_the_apps_live():
     w._update_buttons()
     assert not w.btn_publish.isEnabled()  # already on the Pi
     w.close()
+
+
+def test_repo_build_and_run_survive_a_manifest_round_trip():
+    import yaml
+
+    from raspi.config.loader import ConfigError, parse_manifest
+    from raspi.core.manifest import render_manifest
+    from raspi.core.models import AppRef
+
+    app = AppRef(
+        "notes-app",
+        "notes-app.service",
+        "/home/pi/apps/notes-app",
+        repo="SonSonDev/notes-app",
+        build="npm ci && npm run build",
+        run="npm start",
+    )
+    assert parse_manifest(yaml.safe_load(render_manifest((app,)))) == (app,)
+    for bad in (
+        {"repo": "not a repo"},
+        {"build": "npm ci\nrm -rf ~"},
+        {"run": "x" * 501},
+    ):
+        entry = {"name": "a", "unit": "a.service", **bad}
+        with pytest.raises(ConfigError):
+            parse_manifest({"version": 1, "apps": [entry]})

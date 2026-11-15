@@ -2,6 +2,12 @@
 One entry per decision, newest first. A decision is only changed by a new entry that supersedes it.
 Not logged: visual tweaks, tuning values, reverted trials.
 
+## 2026-11-15 — Clone and build: plain working copy in `~/apps/<app>`, existing copy untouched, app recorded after a successful build
+- Decision: `install-app` clones into `~/apps/<app>` (or the app's `path`) with a plain `git clone` of the default branch through the deploy-key alias, runs `build` in it, and only then adds the entry to the Pi's `apps.yaml` (unit name `<app>.service`). A folder that is already a git working copy is kept as is (no fetch, pull or checkout); a non-empty folder that is not one is refused. `build` and `run` are one-line shell commands from the developer's own `apps.yaml`: validated (no control characters, 500 characters), shown in full before anything runs, never assembled from other values.
+- Why: the `releases/<sha>` layout and version switching belong to the deploy step (F3), so install stays a safe first step that can be repeated; recording after the build means a failed build leaves no half-declared app and the command can simply be run again. Notes App (first real app) is built with `npm ci && npm run build` and started with `npm start`, with its environment from the unit's `EnvironmentFile`.
+- Alternatives rejected: the `releases/<sha>` layout now (it is F3 and needs the unit and env work first); recording the app before building (a failed build leaves a unit-less entry); pulling an existing copy (could discard or clash with local edits).
+- Consequences: no unit exists yet after install (next slice generates it from `run`, the env file and the absolute `node` path); the Pi's Node must already be installed (`install-node`) for apps that need it; the build runs with the Pi's user privileges, so only commands the developer wrote should go in `build`.
+
 ## 2026-11-15 — An app's repo, build and run commands are declared in the Pi's `apps.yaml`
 - Decision: the app entry in `~/.raspi/apps.yaml` gets the optional fields `repo` (owner/name), `build` (commands run after checkout) and `run` (command the generated unit starts), later `port`. Clone and build (F10 steps 5-6) and unit generation (step 8) read them from there. Not built yet: schema, validation, wizard.
 - Why: follows the 2026-11-14 decision that the Pi is the source of truth, so a reinstalled PC finds how each app is installed; no change needed in the projects themselves.

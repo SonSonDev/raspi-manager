@@ -20,6 +20,9 @@ class AppRef:
     env_files: tuple[
         EnvFile, ...
     ] = ()  # environment files the app (or its build) reads
+    repo: str | None = None  # GitHub `owner/name`, cloned through the app's deploy key
+    build: str | None = None  # shell command run in the working copy after a checkout
+    run: str | None = None  # command the app's systemd unit starts
 
 
 @dataclass(frozen=True)
