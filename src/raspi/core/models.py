@@ -23,6 +23,7 @@ class AppRef:
     repo: str | None = None  # GitHub `owner/name`, cloned through the app's deploy key
     build: str | None = None  # shell command run in the working copy after a checkout
     run: str | None = None  # command the app's systemd unit starts
+    built: str | None = None  # git revision the last successful build was made from
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,10 @@ class AppStatus:
     rev: str = ""
     dirty: int | None = None  # None = not a git repo
     remote: str = ""
+    key_present: bool | None = (
+        None  # deploy key file exists (None: not an app with a repo)
+    )
+    env_present: tuple[bool, ...] = ()  # per declared env file: does it exist on the Pi
 
     @property
     def state(self) -> str:

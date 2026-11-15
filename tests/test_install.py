@@ -135,3 +135,14 @@ def test_reinstall_updates_the_entry_and_keeps_its_env_files():
     saved = pi.manifest
     assert "npm ci && npm run build" in saved and "run: npm start" in saved
     assert "/home/pi/x/.env" in saved
+
+
+def test_install_records_the_built_revision_only_when_there_is_a_build():
+    pi = Pi()
+    host = Host("pi", "10.0.0.1", "pi")
+    install_app(host, pi, plan_install(host, pi, APP))
+    assert "built: abc1234" in pi.manifest
+    pi2 = Pi()
+    plain = AppRef("p", "p.service", repo="me/p", run="npm start")
+    install_app(host, pi2, plan_install(host, pi2, plain))
+    assert "built:" not in pi2.manifest

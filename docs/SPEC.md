@@ -54,7 +54,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 ## F2 — App inventory and install
 - **Inventory on the Pi** (done): `~/.raspi/apps.yaml` (`version: 1`, then `apps:`) is the source of truth; fields: `name`,
   `unit`, `path`, `env_files` (label + path), `repo` (owner/name), `build`, `run` (one-line commands, ≤ 500 characters,
-  validated, shown in full before anything runs). Planned fields: `built: <rev>`, `previous: <rev>`, `requires:` (WORKFLOW §6).
+  validated, shown in full before anything runs). `built: <rev>` (done: set after a successful build when a build is declared). Planned fields: `previous: <rev>`, `requires:` (WORKFLOW §6). For an app with a `repo`, the status also reads its working copy (`~/apps/<app>` when no `path`), whether its deploy key exists and whether each declared env file exists.
   Read on every refresh; a missing file falls back to the apps in `hosts.yaml`; an invalid file is ignored with the reason
   in the status bar. Every write: applied on the file read just now, atomic (temp + mv, mode 600), `.bak` kept, read back.
 - **Publish** (done): “Publish apps to Pi…” / `host publish NAME` writes the `hosts.yaml` apps to a Pi that has no
@@ -73,8 +73,8 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   `/etc/systemd/system/<app>.service` marked `# managed by raspi-manager`: `run` through `/bin/sh -c "exec …"`, login user,
   working copy, `Restart=on-failure`, nvm's Node first in `PATH`, one `EnvironmentFile=` per declared env file. A unit
   without our marker is never overwritten. Needs passwordless sudo; reports a missing Node or env file.
-- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app, `built` marker,
-  `requires`, the “New app” wizard (F7b).
+- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app, `requires`, the “New app”
+  wizard (F7b).
 
 ## F3 — Deploy and versions
 Status: `planned`. Decided 2026-11-15 (WORKFLOW §6): `fetch`, fast-forward to a chosen ref (branch, tag or sha), build,
@@ -130,8 +130,7 @@ Built and tested against a simulated Cloudflare only (never run on the real acco
 ## F7 — Main UI
 Native Qt app (`raspi gui`): live table, Restart/Start/Stop/Logs/Refresh with shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L),
 confirmation dialogs, logs dock, unreachable and “checking” states, light/dark. The web dashboard is a secondary front.
-Planned: a per-app **stage** column (WORKFLOW §2: declared, key, cloned, built, env, unit, running, routed) that drives
-which buttons are enabled and says why when one is not; version picker; tray icon. Every screen has loading, empty, error
+Done: a **“Next step”** column per app (WORKFLOW §2: deploy key, clone, build, run command, environment, unit, start, ready) with the reason in the tooltip. Planned: the other buttons following the stage; “routed” in the column; version picker; tray icon. Every screen has loading, empty, error
 and success states.
 
 ## F7b — Guided “New app” wizard

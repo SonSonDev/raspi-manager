@@ -9,9 +9,11 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QBrush, QColor, QFont
 
 from raspi.core.models import AppRef, AppStatus, Host, HostStatus
+from raspi.core.stage import next_step
 from raspi.gui.theme import MONO, STATE_COLOR, STATE_GLYPH, Tokens
 
-COLUMNS = ("State", "App", "Host", "Version", "Since", "Restarts")
+COLUMNS = ("State", "App", "Host", "Version", "Since", "Restarts", "Next step")
+NEXT_COL = 6
 
 
 @dataclass
@@ -139,6 +141,9 @@ class FleetModel(QAbstractTableModel):
             return self._text(row, col, state, pending)
         if role == Qt.ItemDataRole.ForegroundRole and col == 0:
             return QBrush(QColor(getattr(self._tokens, STATE_COLOR[state])))
+        if role == Qt.ItemDataRole.ForegroundRole and col == NEXT_COL:
+            done = row.app and row.status and next_step(row.app, row.status).done
+            return QBrush(QColor(self._tokens.muted if done else self._tokens.ink))
         if role == Qt.ItemDataRole.ForegroundRole and (col >= 3 or row.app is None):
             return QBrush(QColor(self._tokens.muted if col >= 4 else self._tokens.ink))
         if role == Qt.ItemDataRole.FontRole:
@@ -146,7 +151,7 @@ class FleetModel(QAbstractTableModel):
                 font = QFont()
                 font.setBold(True)
                 return font
-            if col >= 3:
+            if 3 <= col < NEXT_COL:
                 return QFont(MONO.split(",")[0].strip('" '))
         if role == Qt.ItemDataRole.ToolTipRole:
             return self._tooltip(row, state)
@@ -170,9 +175,15 @@ class FleetModel(QAbstractTableModel):
             return (s.rev + ("*" if s.dirty else "")) if s.rev else "-"
         if col == 4:
             return s.since or "-"
+        if col == NEXT_COL:
+            return next_step(row.app, s).label or "-"
         return str(s.restarts)
 
     def _tooltip(self, row: Row, state: str) -> str | None:
+        if row.app and row.status and state not in ("unreachable", "working"):
+            hint = next_step(row.app, row.status).why
+            if hint:
+                return hint
         if state == "unreachable" and row.host_status:
             return row.host_status.error
         if row.status and row.status.dirty:

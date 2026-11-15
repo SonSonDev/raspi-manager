@@ -153,3 +153,29 @@ def test_buttons_explain_themselves_without_a_unit(qapp):
         not window.btn_unit.isEnabled() and "run command" in window.btn_unit.toolTip()
     )
     window.close()
+
+
+def test_table_shows_the_next_step(qapp):
+    from raspi.core.models import AppRef
+    from raspi.gui.fleet_model import NEXT_COL
+    from raspi.gui.main_window import MainWindow
+    from raspi.gui.theme import LIGHT
+    from raspi.services.status import collect_host
+    from raspi.ssh.transport import RunResult
+
+    class Pi:
+        def run_script(self, host, script, timeout=20.0):
+            return RunResult(
+                True,
+                "@@APP notes-app\nLoadState=not-found\nActiveState=inactive\n"
+                "key=yes\nrev=2f62548\n",
+            )
+
+    app = AppRef("notes-app", "notes-app.service", repo="me/s", build="npm ci")
+    host = Host("pi", "10.0.0.1", "pi", (app,))
+    window = MainWindow([host], Pi(), LIGHT, auto_refresh=False)
+    window.model.set_host_status(collect_host(host, Pi()))
+    index = window.model.index(0, NEXT_COL)
+    assert window.model.data(index) == "Build (Install app…)"
+    assert "not been built" in window.model.data(index, 3)  # tool tip role
+    window.close()

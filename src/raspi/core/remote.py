@@ -21,6 +21,15 @@ _MARK = "@@APP "
 _CREDENTIALS = re.compile(r"(?<=//)[^/@\s]+@")
 
 
+def _workdir(app: AppRef) -> str | None:
+    """Shell-quoted working copy of the app: its path, else ~/apps/<name> for a repo app."""
+    if app.path:
+        return shlex.quote(app.path)
+    if app.repo:
+        return f'"$HOME/apps/{app.name}"'
+    return None
+
+
 def build_status_script(apps: tuple[AppRef, ...]) -> str:
     """Shell script that only reads state (systemctl show, git rev-parse/status/remote)."""
     lines = []
@@ -28,8 +37,15 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
         lines.append(f"echo {shlex.quote(_MARK + app.name)}")
         props = " ".join(f"-p {p}" for p in SHOW_PROPS)
         lines.append(f"systemctl show {shlex.quote(app.unit)} {props} 2>&1")
-        if app.path:
-            p = shlex.quote(app.path)
+        workdir = _workdir(app)
+        if app.repo:
+            key = f'"$HOME/.ssh/raspi_deploy_{app.name}"'
+            lines.append(f'echo "key=$([ -f {key} ] && echo yes || echo no)"')
+        for i, env in enumerate(app.env_files):
+            p = shlex.quote(env.path)
+            lines.append(f"[ -f {p} ] && echo envfile{i}=yes || echo envfile{i}=no")
+        if workdir:
+            p = workdir
             lines.append(f"if [ -d {p}/.git ]; then")
             lines.append(
                 f'  echo "rev=$(git -C {p} rev-parse --short HEAD 2>/dev/null)"'
@@ -209,6 +225,13 @@ def _apply(app: AppStatus, key: str, value: str) -> None:
         app.since = value
     elif key == "NRestarts":
         app.restarts = int(value) if value.isdigit() else 0
+    elif key == "key":
+        app.key_present = value == "yes"
+    elif key.startswith("envfile") and key[7:].isdigit():
+        index = int(key[7:])
+        flags = list(app.env_present) + [False] * (index + 1 - len(app.env_present))
+        flags[index] = value == "yes"
+        app.env_present = tuple(flags)
     elif key == "rev":
         app.rev = value
     elif key == "dirty":

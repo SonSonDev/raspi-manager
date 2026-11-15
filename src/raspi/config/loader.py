@@ -106,6 +106,13 @@ def check_repo_field(value: object) -> str:
         raise ConfigError(f"Invalid repo: {value!r} ({exc})") from exc
 
 
+def check_rev(value: object) -> str:
+    text = str(value).strip()
+    if not re.fullmatch(r"[0-9a-f]{4,40}", text):
+        raise ConfigError(f"Invalid built revision: {value!r}")
+    return text
+
+
 def check_command(value: object, what: str) -> str:
     """One-line shell command typed by the developer; it runs on the Pi, so it is shown first."""
     text = value.strip() if isinstance(value, str) else ""
@@ -130,6 +137,7 @@ def _apps(items: object) -> tuple[AppRef, ...]:
             if a.get("build")
             else None,
             run=check_command(a["run"], "run command") if a.get("run") else None,
+            built=check_rev(a["built"]) if a.get("built") else None,
         )
         for a in items
     )

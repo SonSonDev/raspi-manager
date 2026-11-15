@@ -24,7 +24,7 @@ Steps 2–6 are one guided flow, "New app" (⬜ as a single flow; ✅ as separat
 | 1 | Pi ready | “Check Pi…” / `host doctor`; “Install missing…” / `host provision`; “Install Node…” / `host install-node` | 0 | apt `git`, `curl`; `~/apps`; nvm + Node | doctor report | doctor all ✓ | apt remove / `rm -rf ~/.nvm` by hand | ✅ (uv ⬜) |
 | 2 | Key ready | “Deploy key…” / `host deploy-key` | 1 (git) | `~/.ssh/raspi_deploy_<app>`, `~/.ssh/config` block, `known_hosts` | — | `git ls-remote` via the alias succeeds | delete the 2 files + config block; remove the key on GitHub | ✅ |
 | 3 | Cloned | “Install app…” / `host install-app` | 2, repo declared | `git clone` into `~/apps/<app>` | key present, disk ≥ 500 MB, folder state | folder is a git working copy at a known rev | `rm -rf` the folder | ✅ |
-| 4 | Built | same action (runs `build`) | 3, Node ready, `build` declared (may be empty) | `build` output in the working copy | — | build exit code 0 | `git clean` by hand | ✅, **“built” is not recorded** (see §6) |
+| 4 | Built | same action (runs `build`) | 3, Node ready, `build` declared (may be empty) | `build` output in the working copy; `built: <rev>` in `apps.yaml` | — | build exit code 0 and `built` equals the working copy revision | `git clean` by hand | ✅ |
 | 5 | Env pushed | “Environment…” | 3 (to find candidates) | env file `chmod 600` | diff local vs Pi, names only | sync line “same as the Pi” | restore `.raspi-bak` | ✅ |
 | 6 | Unit installed | “Install unit…” / `host install-unit` | 4, `run` declared, 5 (else warning), sudo | `/etc/systemd/system/<app>.service`, enable | unit file ours/foreign/missing, node bin, env files exist | unit enabled | `systemctl disable` + delete file by hand | ✅ |
 | 7 | Running | Start / Stop / Restart / Logs | 6 | systemd state | state | state `running` and logs clean | Stop | ✅ |
@@ -34,6 +34,14 @@ Steps 2–6 are one guided flow, "New app" (⬜ as a single flow; ✅ as separat
 Entry path B, **adopt an existing service** (`Scan apps…` / `host adopt`): the app enters at step 6 (unit exists, not ours,
 never overwritten). Steps 2–4 are skipped; 5, 7, 8 apply as usual.
 
+**“Next step” column** (✅, `core/stage.py`): read at each refresh from the Pi's status and the declared fields, in this
+order, the first that applies wins (a hint that names the button to use, never a gate):
+`Deploy key…` (repo app, nothing cloned, no key) → `Install app…` (nothing cloned) → `Build (Install app…)` (a build is
+declared and `built` is not the current revision) → `Set the run command (Install app…)` → `Push environment…` (a declared
+env file is missing on the Pi) → `Environment…` (no unit and no env file declared; skip it with “Install unit…” if the app
+needs none) → `Install unit…` (no unit) → `Start` (stopped or failed) → `✓ Ready` (running). Adopted apps (no `repo`) only
+get `Start` or `✓ Ready`. The row's tooltip gives the reason. “Routed” is not read yet.
+
 ## 3. Rules that make each step safe (apply to every step, present and future)
 1. **One entry of data.** A value (app name, repo, commands, folder) is typed once and stored in `apps.yaml`; later steps
    never ask for it again. Forms for an existing app open pre-filled.
@@ -42,7 +50,7 @@ never overwritten). Steps 2–4 are skipped; 5, 7, 8 apply as usual.
 3. **Idempotent.** Running a step twice is safe: it does nothing, or updates, never duplicates or overwrites something
    raspi-manager did not create.
 4. **Stage-aware UI.** A button is enabled only when its prerequisite holds, and a disabled button says why (tooltip).
-   🟡 Done for Start (state “– no unit”, tooltip points to “Install unit…”) and “Install unit…”; the full stage column is ⬜.
+   🟡 Done for Start (state “– no unit”, tooltip points to “Install unit…”) and “Install unit…”. The table has a “Next step” column (✅, below); making every other button follow the stage is ⬜.
    Actions on an app say what to do next when they cannot run (e.g. Start without a unit: “Create the unit first”).
 5. **Silent failures are bugs.** Every worker failure ends in a visible message with the cause and the next action. No
    method name is defined twice across `MainWindow` and its mixins (test).
@@ -67,8 +75,8 @@ Decisions: DECISIONS.md. Behaviour: SPEC.md. Structure: ARCHITECTURE.md. This fi
 If code and this file disagree, say so and fix one of them in the same change.
 
 ## 6. Decisions taken on 2026-11-15 (all ⬜ unless the table above says otherwise)
-1. **Built marker.** After a successful build, `built: <rev>` is recorded in the app's `apps.yaml` entry. “Built” and
-   “needs rebuild” are then readable from the Pi (step 4, stage indicator).
+1. **Built marker** (✅). After a successful build, `built: <rev>` is recorded in the app's `apps.yaml` entry (only when a
+   build is declared). “Built” and “needs rebuild” are then readable from the Pi (step 4, “Next step” column).
 2. **Update (step 9).** `git fetch`, fast-forward to the chosen ref (branch tip, tag or sha), build, restart. Refused when
    the working copy has local changes. The previous revision is kept in `apps.yaml` (`previous: <rev>`) and rollback is a
    checkout of it plus rebuild and restart. No `releases/<sha>` layout.
@@ -99,4 +107,5 @@ If code and this file disagree, say so and fix one of them in the same change.
 | 2026-11-15 | raspi-v | 2 deploy key + verify | ✓ `SonSonDev/notes-app` readable |
 | 2026-11-15 | raspi-v | 3 clone | ✓ done by the developer; **build/run left empty** (form showed grey examples) → fixed (required `run`, “Update an app”) |
 | 2026-11-15 | raspi-v | transport change (whole-script read) | ✓ `host doctor` and `status` run through it; notes-app shows “– no unit” |
+| 2026-11-15 | raspi-v | “Next step” column (read-only) | notes-app: cloned at 2f62548, key present, not built → “Build (Install app…)”; on `raspi`: example-bot and chat-bot “✓ Ready”, web-game “Start” |
 | 2026-11-15 | raspi-v | 4–9 | not run yet |

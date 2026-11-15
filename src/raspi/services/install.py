@@ -65,7 +65,11 @@ def install_app(
     if register:
         known = next((a for a in host.apps if a.name == plan.app.name), None)
         # the form knows nothing about env files: keep the ones already declared
-        wanted = replace(plan.app, env_files=known.env_files) if known else plan.app
+        wanted = replace(
+            plan.app,
+            env_files=known.env_files if known else plan.app.env_files,
+            built=rev if plan.app.build and rev else None,
+        )
         if known != wanted:
             if known is None:
                 saved, note = add_apps(host, (wanted,), transport), "added to"

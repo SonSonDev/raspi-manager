@@ -2,6 +2,12 @@
 One entry per decision, newest first. A decision is only changed by a new entry that supersedes it.
 Not logged: visual tweaks, tuning values, reverted trials.
 
+## 2026-11-15 — “Next step” column: a hint computed from live status, `built` recorded in the inventory
+- Decision: the table gets a “Next step” column (`core/stage.py`), derived on every refresh from the Pi's status (unit load state, working copy revision, deploy key and declared env files present) and the app's declared fields (`repo`, `build`, `built`, `run`, `env_files`); the first applicable step of WORKFLOW §2 wins. It names the button to use and never blocks any action. `built: <rev>` is written to the app's `apps.yaml` entry after a successful build when a build is declared; revisions compare as prefixes because git's short length can grow. For a repo app without `path` the status reads `~/apps/<app>` (before, such an app showed no version).
+- Why: the path had no visible position, so the developer could not tell what to do next and a missing step only showed as an error later; the Pi stays the only source of truth (nothing cached).
+- Alternatives rejected: gating buttons strictly by stage (blocks legitimate special cases and hides the real error); remembering the stage on the PC (stale); inferring “built” from `dist/` or `node_modules` (differs per app).
+- Consequences: the status script grows by a few read-only lines per app; “routed” is not part of the column yet; new steps must be added to `next_step` and its table test.
+
 ## 2026-11-15 — Scripts are read whole by the Pi before they run; a missing unit is its own state
 - Decision: the transport sends the script on stdin and runs `sh -c 'eval "$(cat)"'` on the Pi, instead of `sh -s`. `cat` reads all of stdin first, so a command inside the script that reads stdin (a build tool, an installer) sees end-of-file and cannot swallow the following lines. The script stays in memory (no temporary file, so secrets such as a tunnel token never touch the Pi's disk through this path). A `LoadState=not-found` unit is shown as state `no-unit` (“– no unit”), Start is disabled for it with an explanation, and tests run every generated script through `sh -n` and reject bashisms.
 - Why: with `sh -s` the shell reads its script from the same stdin the commands inherit, so truncation would be silent; the real build of an app is exactly the kind of command that may read stdin. A start that fails with “Unit not found” was a bug report waiting to happen.
