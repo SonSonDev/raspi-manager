@@ -1,6 +1,13 @@
 # Decision log
 One entry per decision, newest first. A decision is only changed by a new entry that supersedes it.
 Not logged: visual tweaks, tuning values, reverted trials.
+Superseded or reversed entries are kept in `docs/archive/DECISIONS-superseded-2026-11.md`.
+
+## 2026-11-15 — Dependencies bumped to the latest stable (checked on PyPI the same day)
+- Decision: ruff 0.17.1 → 0.17.5, pytest 9.1.1 → 9.2.0, python-multipart 0.0.32 → 0.0.33, typer 0.27.3 → 0.29.1, fastapi 0.143.3 → 0.163.1, one at a time with the full gates after each (`uv lock --upgrade-package`, `uv sync`, ruff, 413 tests, CLI `--help`). Unchanged because already current: uvicorn 0.54.0, pyyaml 6.0.3, httpx 0.28.1, keyring 25.7.0, PySide6-Essentials 6.12.0.
+- Why: the 2026-11-15 checkpoint found them behind; small steps keep any break attributable.
+- Alternatives rejected: bumping everything at once.
+- Consequences: Starlette's test client now prints a deprecation warning (“install `httpx2` instead”) when used with `httpx`; harmless for now, to revisit when `httpx2` is approved (library policy: not added). `pyproject.toml` minimums are unchanged, the lock holds the exact versions.
 
 ## 2026-11-15 — New app wizard: steps are read from the Pi, not remembered; the key counts once GitHub accepted it
 - Decision: the wizard (`gui/newapp_wizard.py`, pure part `core/wizard.py`) shows five steps (key, clone and build, environment, unit, start) and only the first not done is actionable. Whether a step is done is derived from the Pi's live status and the declared fields before and after every step (`services.wizard.read_status`, `read_inventory`), never from wizard state, so abandoning or failing a step is safe and the wizard reopens where it stopped (“Continue setup…”). Each step reuses the existing services and shows its exact script through the shared `confirm_change`. The key step is done only when GitHub accepted the key during this session or the repo is already cloned (a key file proves nothing); “the app needs no environment file” is remembered for the session only.
@@ -13,12 +20,6 @@ Not logged: visual tweaks, tuning values, reverted trials.
 - Why: the developer judged the three-row version ugly on all four counts offered (too tall, irregular, still too many buttons, style). Menus fit rare actions (Hick), the platform look removes the irregularity at its source.
 - Alternatives rejected: three labelled rows (tried, rejected); a detail side panel; right-click only; "Ops Ledger" kept but lightened.
 - Consequences: setup and Pi actions cost 2 clicks instead of 1; toolbar text drops the “…” (Qt strips it from action icon text); the app no longer shares its look with the web dashboard.
-
-## 2026-11-15 — Toolbar: three labelled rows by frequency, no menus (superseded: judged ugly, replaced the same day)
-- Decision: the 17 same-looking buttons are grouped into three labelled rows (Run, App in workflow order, Pi) with weight by frequency (bordered, quiet, red for destructive); the table's Next step column moves right after Host. No button goes into a menu. A `--edge` token (≥ 3:1) is used for button borders.
-- Why: the developer found many buttons alike; the grouping follows the tasks and the workflow order, keeps every action at 1 click and the shortcuts as they were (DESIGN.md: never hide a frequent action).
-- Alternatives rejected: a contextual “Next” button plus App/Pi menus (recommended by Claude, not chosen: +1 click for rare actions, hidden actions); a side panel (width, rework).
-- Consequences: the toolbar is three lines tall (about 90 px); the window is no longer truncated at 1000 px; a later “Next” button can still be added without moving anything.
 
 ## 2026-11-15 — Update: a detached checkout of one exact commit, rollback to `previous`/`built`
 - Decision: “Update…” / `host update|rollback` check out one full commit hash with `git checkout --detach` (for a branch tip, a tag, a sha and a rollback alike), rebuild, and restart the unit only if it was running. Refuses uncommitted changes to tracked files (`git status --untracked-files=no`) and commits not on any remote (`git rev-list HEAD --not --remotes`). `apps.yaml` gets `previous: <rev>` next to `built`; a successful update sets `built` to the new revision and `previous` to the old one, a rollback returns to `previous` (or to `built` after a failed update) and clears it. The plan runs `git fetch` (writes only remote-tracking refs in `.git`) so that incoming commits can be listed; this refines workflow decision 2, which said “fast-forward”.
@@ -47,7 +48,7 @@ Not logged: visual tweaks, tuning values, reverted trials.
 ## 2026-11-15 — Checkpoint: workflow written down (`docs/WORKFLOW.md`) and six workflow decisions
 - Found (checkpoint of 2026-11-15): the path from a bare Pi to an app online existed only as separate buttons; no per-app stage, repeated questions, no update step, scripts sent on stdin without protection, docs out of date (ARCHITECTURE Pi layout and Fabric, SPEC F4/F7b/F10 statuses, BRIEF risk table), 3 source files over 400 lines (`cloudflare_dialog`, `env_dialog`, `routing`), dependencies behind (typer 0.27.3 → 0.29.1, fastapi 0.143.3 → 0.163.1, python-multipart → 0.0.33, pytest → 9.2.0, ruff → 0.17.5; checked on PyPI the same day), CLAUDE.md saying Python 3.12 while `.python-version` is 3.14.
 - Decided: `docs/WORKFLOW.md` is the reference for the path and any new step is written there first. (1) `built: <rev>` recorded in `apps.yaml` after a successful build; (2) update = fetch, fast-forward to a ref, build, restart, previous rev kept for rollback, no `releases/<sha>`; (3) a “New app” wizard chains key, clone, build, environment and unit with a confirmation per step and resume on failure; (4) optional `requires:` list in `apps.yaml`, checked and never created; (5) “Remove app…” with ticked items and the name typed to confirm, data folders never deleted; (6) the wizard reads `.env.example` from the clone to pre-fill the Environment editor with variable names.
-- Deferred (not yet decided or built): protecting scripts from stdin reads, stage indicator, script syntax tests, splitting the three long files, dependency bumps one by one, aligning SPEC/ARCHITECTURE/BRIEF/QUESTIONS and CLAUDE.md with the code.
+- Deferred at the time, all done since (2026-11-15): protecting scripts from stdin reads, stage indicator, script syntax tests, splitting the three long files (`cloudflare_dialog` into dialog + routes mixin + add-route and DNS dialogs, `env_dialog` into dialog + files and push mixins, `routing` + `routing_delete`; the two long test files split by feature), dependency bumps one by one, aligning SPEC/ARCHITECTURE/BRIEF/QUESTIONS and CLAUDE.md with the code, archiving four superseded decisions to `docs/archive/DECISIONS-superseded-2026-11.md`.
 
 ## 2026-11-15 — App units: `EnvironmentFile=` points at the app's declared env files; enabled, not started
 - Decision: `install-unit` writes `/etc/systemd/system/<app>.service` (marker `# managed by raspi-manager`) with `User=<login user>`, `WorkingDirectory=<working copy>`, `Environment=PATH=<nvm node bin>:/usr/local/bin:/usr/bin:/bin`, one `EnvironmentFile=<path>` per env file declared in the inventory (the files the Environment… editor already pushes), `ExecStart=/bin/sh -c "exec <run>"` with `%`, `$`, `\` and `"` escaped for systemd, `Restart=on-failure`. It enables the unit but does not start it. A unit file without our marker is never overwritten.
@@ -99,12 +100,6 @@ Not logged: visual tweaks, tuning values, reverted trials.
 - Why: the developer asked to restore it right after the removal.
 - Alternatives rejected: none discussed; in-app host-key trust (`ssh-keyscan` + fingerprint confirmation) was proposed and not chosen, the first connection stays a terminal step (`docs/PI-SETUP.md`).
 - Consequences: the removal entry below is superseded. The dialog file `gui/add_host_dialog.py` was rewritten from its tests, since the original was untracked in git and lost; behaviour is covered by `tests/test_add_host.py`.
-
-## 2026-11-14 — Pis are registered by hand; the Pi CRUD is removed from the GUI and CLI
-- Decision: removed “Add a Pi…”, “Edit Pi…”, “Remove Pi…” (GUI) and `raspi host add|edit|rm` (CLI), with their dialog, writer functions and tests. A Pi is added by editing `~/.raspi/hosts.yaml`; `docs/PI-SETUP.md` documents the terminal commands (ssh key, first-connection host key check with fingerprint comparison, file format). `raspi host ls` stays.
-- Why: the developer asked for terminal instructions instead of in-app Pi management; a Pi needs SSH and host-key trust set up outside the app anyway, and the app cannot safely accept host keys for the user.
-- Alternatives rejected: in-app host-key trust (`ssh-keyscan` + fingerprint confirmation, on “Add a Pi” or on error); keeping the CLI twin for scripting.
-- Consequences: supersedes the two 2026-11-14 entries below (first-run “Add a Pi”, edit/remove) and weakens the GUI parity rule for Pis (F7b wizard still planned, to be reconsidered). The first-run state stays: a how-to panel in the window (commands, YAML example, “Open setup guide” button) shown when there is no hosts file or it is empty; real config errors still use the red banner. Possible next step, not decided: a read-only scan of a Pi's apps and a manifest file on the Pi.
 
 ## 2026-11-14 — Pi edit/remove: name is locked, removal forgets its apps after confirmation
 - Decision: editing a Pi changes only address and user; the name is its identity. Removing a Pi deletes its block (with its declared apps and env files) from hosts.yaml after a confirmation that lists the apps (CLI: prompt unless `--yes`). Nothing is sent to the Pi; local env copies and Cloudflare tunnels are left alone.
@@ -180,12 +175,6 @@ aspi` keep their names.
 - Consequences: design tokens expressed as Qt style sheet (`gui/theme.py`); a Qt dependency to maintain; the web UI and Qt UI may drift, so new features go to Qt first and web gets only what is cheap. Callbacks from worker threads must be Slots on a GUI-thread QObject with queued connections.
 - Sources: [PySide6 on PyPI mirror](https://simple-repository.app.cern.ch/project/pyside6) and QThreadPool/QRunnable worker-signals pattern (pythonguis.com, penguintutor.com), searched 2026-10-17; version actually installed is 6.12.0.
 
-## 2026-10-17 — Windows "app" = Edge app-mode window launched by a script (now secondary)
-- Decision: `scripts/raspi-gui.ps1` starts `raspi web` hidden if needed and opens it with `msedge --app=` on a dedicated profile (`%LOCALAPPDATA%\raspi\edge-profile`), stopping the server when the window closes; Desktop shortcut via `-InstallShortcut`.
-- Why: native-looking window with zero new dependency and the same UI as the browser; chosen by the developer.
-- Alternatives rejected: pywebview (extra dependency, WebView2 to test), tray icon (more code); both possible later.
-- Consequences: requires Microsoft Edge (falls back to the default browser, leaving the server running).
-
 ## 2026-10-17 — Dashboard mutations protected by token + Host check; `python-multipart` added
 - Decision: POST actions require a random per-process token embedded in forms, and every request must carry a localhost Host header. `python-multipart` 0.0.32 added (needed by FastAPI/Starlette to parse HTML forms; resolved by uv 2026-10-17).
 - Why: the dashboard can restart services with sudo; a web page open in the same browser could otherwise post to `127.0.0.1` (CSRF) or use DNS rebinding.
@@ -235,11 +224,6 @@ aspi` keep their names.
 - Decision: all control over SSH; live state read from systemd and git each time.
 - Why: nothing to install/secure/update on the Pi; apps keep running when the PC is off.
 - Alternatives rejected: Pi agent with API (more code, attack surface); Tailscale deferred.
-
-## 2026-10-17 — Process supervision: systemd user units + linger (SUPERSEDED by single-mode system units)
-- Decision: one `raspi-<app>.service` user unit per app, `EnvironmentFile`, `loginctl enable-linger`, logs via `journalctl --user`.
-- Why: native, no root for daily ops; Raspberry Pi docs recommend lingering on headless setups ([Arch wiki systemd/User](https://wiki.archlinux.org/title/Systemd/User), search 2026-10-17).
-- Alternatives rejected: system-level units (sudo each action), Docker/PM2/supervisor (extra layer).
 
 ## 2026-10-17 — Env vars: `.env` files on the PC outside git
 - Decision: `~/.raspi/env/<app>.<host>.env`, pushed as `chmod 600` files. Backup is the developer's job (backup command planned later).

@@ -20,15 +20,13 @@ from PySide6.QtWidgets import (
 
 from raspi import APP_NAME
 from raspi.config import envstore
-from raspi.core.env import EnvError, check_pair, diff_env
+from raspi.core.env import diff_env
 from raspi.core.models import AppRef, EnvFile, Host
-from raspi.gui.add_env_dialog import AddEnvFileDialog
-from raspi.gui.declare import run_declaration
+from raspi.gui.env_files import EnvFilesMixin
+from raspi.gui.env_push import EnvPushMixin
 from raspi.gui.env_template import EnvTemplateMixin
 from raspi.gui.workers import submit
-from raspi.services.actions import run_action
-from raspi.services.declare import declare_env_file, forget_env_file
-from raspi.services.env import RemoteEnv, push, read_remote
+from raspi.services.env import RemoteEnv, read_remote
 from raspi.ssh.transport import Transport
 
 MASK = "••••••••"
@@ -61,7 +59,7 @@ class _ValueDelegate(QStyledItemDelegate):
         self._dialog.mark_dirty()
 
 
-class EnvDialog(EnvTemplateMixin, QDialog):
+class EnvDialog(EnvFilesMixin, EnvPushMixin, EnvTemplateMixin, QDialog):
     def __init__(
         self,
         host: Host,
@@ -153,78 +151,6 @@ class EnvDialog(EnvTemplateMixin, QDialog):
         self._load_current()
 
     # --- which file ----------------------------------------------------------------
-    def _fill_picker(self, select: str | None = None) -> None:
-        self.file_picker.blockSignals(True)
-        self.file_picker.clear()
-        for env in self._app.env_files:
-            self.file_picker.addItem(f"{env.label}  —  {env.path}", env.label)
-        index = next(
-            (i for i, e in enumerate(self._app.env_files) if e.label == select), 0
-        )
-        self.file_picker.setCurrentIndex(index)
-        self.file_picker.blockSignals(False)
-
-    def add_file(self) -> None:
-        dialog = AddEnvFileDialog(
-            self._host,
-            self._app,
-            self._transport,
-            {e.label for e in self._app.env_files},
-            {e.path for e in self._app.env_files},
-            self,
-            on_pi=self._on_pi,
-        )
-        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
-            return
-        label, path = dialog.result_value
-        result = run_declaration(
-            lambda: declare_env_file(
-                self._host, self._app.name, label, path, self._transport, self._on_pi
-            )
-        )
-        if not result.ok or result.app is None:
-            QMessageBox.warning(self, APP_NAME, result.message)
-            return
-        self._app = result.app
-        self._fill_picker(self._env.label)
-        index = self.file_picker.findData(label)
-        if index >= 0:
-            self.file_picker.setCurrentIndex(index)  # asks before dropping edits
-        self.note.setText(f"Declared {path} as “{label}”. {result.message}")
-
-    def forget_file(self) -> None:
-        if (
-            QMessageBox.question(
-                self,
-                APP_NAME,
-                f"Stop managing {self._env.path} in raspi?\n"
-                "The file on the Pi and your local copy are not deleted.",
-            )
-            != QMessageBox.StandardButton.Yes
-        ):
-            return
-        result = run_declaration(
-            lambda: forget_env_file(
-                self._host,
-                self._app.name,
-                self._env.label,
-                self._transport,
-                self._on_pi,
-            )
-        )
-        if not result.ok:
-            QMessageBox.warning(self, APP_NAME, result.message)
-            return
-        self._dirty = False
-        if result.app is None or not result.app.env_files:
-            self.close()
-            return
-        self._app = result.app
-        self._env = self._app.env_files[0]
-        self._fill_picker(self._env.label)
-        self._update_header()
-        self._load_current()
-
     def _update_header(self) -> None:
         self.header.setText(
             f"<b>{self._app.name}</b> on {self._host.name}<br><code>{self._env.path}</code>"
@@ -244,28 +170,6 @@ class EnvDialog(EnvTemplateMixin, QDialog):
         self._remote = None
         self.sync_label.setText("Checking the Pi…")
         self._check_remote()
-
-    @Slot(int)
-    def _switch_file(self, index: int) -> None:
-        env = self._app.env_files[index]
-        if env.label == self._env.label:
-            return
-        if (
-            self._dirty
-            and QMessageBox.question(
-                self, APP_NAME, "Switch file and discard your unsaved changes?"
-            )
-            != QMessageBox.StandardButton.Yes
-        ):
-            self.file_picker.blockSignals(True)
-            self.file_picker.setCurrentIndex(
-                next(i for i, e in enumerate(self._app.env_files) if e == self._env)
-            )
-            self.file_picker.blockSignals(False)
-            return
-        self._env = env
-        self._update_header()
-        self._load_current()
 
     # --- table helpers ----------------------------------------------------------
     def _fill(self, values: dict[str, str]) -> None:
@@ -374,132 +278,6 @@ class EnvDialog(EnvTemplateMixin, QDialog):
         )
 
     # --- actions -----------------------------------------------------------------------
-    def save_local(self) -> bool:
-        try:
-            for key, value in self.values().items():
-                check_pair(key, value)
-            envstore.save_local(
-                self._host.name, self._app.name, self.values(), self._env.label
-            )
-        except EnvError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
-            return False
-        self._dirty = False
-        self._update_sync()
-        self.note.setText("Saved to your PC (~/.raspi/env, outside git).")
-        return True
-
-    def import_from_pi(self) -> None:
-        remote = self._remote
-        if (
-            remote is None
-            or not remote.ok
-            or not remote.exists
-            or remote.parsed is None
-        ):
-            QMessageBox.information(
-                self, APP_NAME, "There is no readable file on the Pi to import."
-            )
-            return
-        if (
-            self.table.rowCount()
-            and QMessageBox.question(
-                self,
-                APP_NAME,
-                "Replace the variables shown here with the ones from the Pi?",
-            )
-            != QMessageBox.StandardButton.Yes
-        ):
-            return
-        self._fill(remote.parsed.values)
-        self.mark_dirty()
-        self.note.setText(
-            "Imported from the Pi. Values stay masked; they are only saved when you click “Save locally”."
-        )
-
-    def push_to_pi(self, restart: bool) -> None:
-        values = self.values()
-        remote = self._remote
-        try:
-            for key, value in values.items():
-                check_pair(key, value)
-        except EnvError as exc:
-            QMessageBox.warning(self, APP_NAME, str(exc))
-            return
-        if remote is None or not remote.ok:
-            QMessageBox.warning(
-                self,
-                APP_NAME,
-                "The Pi file could not be read, so pushing is blocked. Try again later.",
-            )
-            return
-        d = diff_env(remote.parsed.values if remote.parsed else {}, values)
-        lines = [
-            f"Write {len(values)} variable(s) to {self._env.path} on {self._host.name}?"
-        ]
-        for label, names in (
-            ("Added", d.added),
-            ("Changed", d.changed),
-            ("Removed", d.removed),
-        ):
-            if names:
-                lines.append(f"{label}: {', '.join(names)}")
-        if d.empty:
-            lines.append("Nothing differs from the Pi.")
-        lines += self._tpl_empty_lines(values)
-        lines.append("A backup of the current file is kept next to it (.raspi-bak).")
-        if restart:
-            lines.append(f"Then restarts {self._app.name}.")
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle(APP_NAME)
-        box.setText("\n".join(lines))
-        go = box.addButton(
-            "Push and restart" if restart else "Push", QMessageBox.ButtonRole.AcceptRole
-        )
-        cancel = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(cancel)
-        box.setEscapeButton(cancel)
-        box.exec()
-        if box.clickedButton() is not go or not self.save_local():
-            return
-        self._set_busy(True)
-        host, app, env, transport = self._host, self._app, self._env, self._transport
-
-        def job():
-            pushed = push(host, env, values, transport)
-            restarted = (
-                run_action(host, app, "restart", transport)
-                if restart and pushed.ok
-                else None
-            )
-            return pushed, restarted
-
-        submit(job, self._on_pushed, self._on_push_failed)
-
-    @Slot(object)
-    def _on_pushed(self, payload) -> None:
-        pushed, restarted = payload
-        self._set_busy(False)
-        if not pushed.ok:
-            QMessageBox.critical(self, APP_NAME, f"Push failed: {pushed.message}")
-            return
-        msg = f"Pushed ({pushed.message})."
-        if restarted is not None:
-            msg += f" Restart: {'ok, now ' + restarted.state if restarted.ok else 'FAILED - ' + restarted.message}"
-        elif self._remote is not None:
-            msg += " The app keeps its old values until it is restarted."
-        self.note.setText(msg)
-        self._check_remote()
-
-    def _on_push_failed(self, message: str) -> None:
-        self._set_busy(False)
-        QMessageBox.critical(self, APP_NAME, f"Push failed: {message}")
-
-    def _set_busy(self, busy: bool) -> None:
-        for b in (self.btn_import, self.btn_save, self.btn_push, self.btn_push_restart):
-            b.setEnabled(not busy)
-
     def closeEvent(self, event) -> None:
         if (
             self._dirty

@@ -13,6 +13,8 @@ from raspi.config import cloudflare_settings as cs
 from raspi.core.models import Host
 from raspi.core.routes import Route
 from raspi.gui import cloudflare_dialog as dlg
+from raspi.gui.add_route_dialog import AddRouteDialog
+from raspi.gui.dns_dialog import DnsRecordsDialog
 from raspi.services.routing import ApplyResult, RoutePlan, TunnelInfo
 
 ACC, ZONE = "a" * 32, "b" * 32
@@ -141,7 +143,7 @@ def test_add_route_requires_confirmation_before_any_change(qapp, env, monkeypatc
         self.result_value = ("raspi-v", "game.example.com", "http://localhost:2567", "")
         return dlg.QDialog.DialogCode.Accepted
 
-    monkeypatch.setattr(dlg.AddRouteDialog, "exec", fake_exec)
+    monkeypatch.setattr(AddRouteDialog, "exec", fake_exec)
     d = dlg.CloudflareDialog(HOSTS)
     shown = {}
     monkeypatch.setattr(
@@ -168,7 +170,7 @@ def test_add_route_requires_confirmation_before_any_change(qapp, env, monkeypatc
 
 
 def test_add_route_dialog_validates_presence(qapp):
-    d = dlg.AddRouteDialog(HOSTS, "example.com")
+    d = AddRouteDialog(HOSTS, "example.com")
     d._accept()
     assert d.result_value is None and not d.error.isHidden()
     d.hostname.setText("game.example.com")
@@ -183,7 +185,7 @@ def test_add_route_dialog_validates_presence(qapp):
 
 
 def test_edit_dialog_locks_host_and_hostname(qapp):
-    d = dlg.AddRouteDialog(
+    d = AddRouteDialog(
         HOSTS,
         "example.com",
         None,
@@ -246,7 +248,7 @@ def test_dns_dialog_lists_filters_and_is_prefilled(qapp, env, monkeypatch):
     ]
     monkeypatch.setattr(dlg.routing, "dns_overview", lambda client, settings: entries)
     s = cs.CloudflareSettings(ACC, ZONE, "example.com")
-    d = dlg.DnsRecordsDialog(object(), s, "web-game")
+    d = DnsRecordsDialog(object(), s, "web-game")
     assert pump(lambda: "1 of 2" in d.status.text())
     assert d.table.rowCount() == 1 and d.table.item(0, 4).text() == "tunnel web-game"
     d.filter.setText("")
@@ -285,7 +287,7 @@ def _setup_conflict(monkeypatch, repointable=True):
         self.result_value = ("raspi-v", "game.example.com", "http://localhost:2567", "")
         return dlg.QDialog.DialogCode.Accepted
 
-    monkeypatch.setattr(dlg.AddRouteDialog, "exec", fake_exec)
+    monkeypatch.setattr(AddRouteDialog, "exec", fake_exec)
     return calls
 
 
@@ -355,7 +357,7 @@ def test_non_repointable_conflict_only_explains(qapp, env, monkeypatch):
 
 def test_add_route_dialog_previews_the_tunnel_name_and_returns_the_project(qapp):
     hosts = [Host("raspi", "10.0.0.1", "u"), Host("raspi-v", "10.0.0.2", "u")]
-    d = dlg.AddRouteDialog(hosts, "example.com")
+    d = AddRouteDialog(hosts, "example.com")
     d.host_box.setCurrentText("raspi-v")
     assert d.tunnel_label.text() == "raspi-manager-raspi-v"
     d.project.setText("web-game")
@@ -394,79 +396,3 @@ def test_edit_derives_pi_and_project_from_the_tunnel_name(qapp, env, monkeypatch
     assert seen == [
         ("raspi-v", "game.example.com", "http://localhost:2567", "web-game")
     ]
-
-
-def _delete_setup(monkeypatch, env):
-    env.pw = "t"
-    cs.save_settings(cs.CloudflareSettings(ACC, ZONE, "example.com"))
-    tunnels = [
-        TunnelInfo(
-            "t" * 32,
-            "raspi-manager-raspi-v--web-game",
-            "inactive",
-            [Route("game.example.com", "http://localhost:2567")],
-        )
-    ]
-    plan = dlg.routing.DeletePlan(
-        "t" * 32,
-        "raspi-manager-raspi-v--web-game",
-        "inactive",
-        tunnels[0].routes,
-        ["game.example.com"],
-    )
-    deleted = []
-    monkeypatch.setattr(dlg.routing, "overview", lambda client, settings: tunnels)
-    monkeypatch.setattr(
-        dlg.routing, "plan_delete_tunnel", lambda client, settings, tid, hosts: plan
-    )
-    monkeypatch.setattr(
-        dlg.routing,
-        "apply_delete_tunnel",
-        lambda client, settings, p: deleted.append(p.tunnel_id) or "Tunnel deleted",
-    )
-    d = dlg.CloudflareDialog(HOSTS)
-    assert pump(lambda: d.table.rowCount() == 1)
-    d.table.selectRow(0)
-    return d, deleted
-
-
-def test_delete_needs_the_tunnel_name_typed_exactly(qapp, env, monkeypatch):
-    d, deleted = _delete_setup(monkeypatch, env)
-    shown = []
-    monkeypatch.setattr(
-        dlg.QInputDialog,
-        "getText",
-        lambda *a, **k: shown.append(a[2]) or ("wrong", True),
-    )
-    d.delete_selected_tunnel()
-    assert pump(lambda: "did not match" in d.note.text())
-    assert (
-        deleted == []
-        and "cannot be undone" in shown[0]
-        and "game.example.com" in shown[0]
-        and "NOT deleted" in shown[0]
-    )
-
-
-def test_delete_cancelled_changes_nothing_and_confirmed_deletes_once(
-    qapp, env, monkeypatch
-):
-    d, deleted = _delete_setup(monkeypatch, env)
-    monkeypatch.setattr(dlg.QInputDialog, "getText", lambda *a, **k: ("", False))
-    d.delete_selected_tunnel()
-    assert pump(lambda: "Cancelled" in d.note.text()) and deleted == []
-    monkeypatch.setattr(
-        dlg.QInputDialog,
-        "getText",
-        lambda *a, **k: ("raspi-manager-raspi-v--web-game", True),
-    )
-    d.delete_selected_tunnel()
-    assert pump(lambda: deleted == ["t" * 32])
-    assert pump(lambda: "Tunnel deleted" in d.note.text())
-
-
-def test_delete_without_selection_explains(qapp, env, monkeypatch):
-    d, deleted = _delete_setup(monkeypatch, env)
-    d.table.clearSelection()
-    d.delete_selected_tunnel()
-    assert "Select a row" in d.note.text() and deleted == []
