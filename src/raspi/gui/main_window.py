@@ -28,6 +28,7 @@ from raspi.gui.deploykey_actions import DeployKeyMixin
 from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import FleetModel, Row
 from raspi.gui.host_actions import HostActionsMixin
+from raspi.gui.install_actions import InstallMixin
 from raspi.gui.provision_actions import ProvisionMixin
 from raspi.gui.publish_actions import PublishMixin
 from raspi.gui.route_actions import RouteMixin
@@ -48,6 +49,7 @@ class MainWindow(
     AdoptMixin,
     ProvisionMixin,
     DeployKeyMixin,
+    InstallMixin,
     EnvActionsMixin,
     RouteMixin,
     QMainWindow,
@@ -162,6 +164,8 @@ class MainWindow(
         self.btn_scan = self._button("Scan apps…", self.scan_apps)
         self.btn_check = self._button("Check Pi…", self.check_pi)
         self.btn_key = self._button("Deploy key…", self.deploy_key)
+        self.btn_install = self._button("Install app…", self.install_app_form)
+        self.btn_unit = self._button("Install unit…", self.install_unit_form)
         self.btn_route = self._button("Set up route…", self.setup_route)
         for b in (
             self.btn_add_host,
@@ -169,6 +173,8 @@ class MainWindow(
             self.btn_remove_host,
             self.btn_check,
             self.btn_key,
+            self.btn_install,
+            self.btn_unit,
             self.btn_scan,
             self.btn_publish,
         ):
@@ -240,6 +246,8 @@ class MainWindow(
         self.btn_scan.setEnabled(self.can_scan())
         self.btn_check.setEnabled(self.can_check_pi())
         self.btn_key.setEnabled(self.can_deploy_key())
+        self.btn_install.setEnabled(self.can_install_app())
+        self.btn_unit.setEnabled(self.can_install_unit())
         self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))
         declared = bool(row and row.app and row.app.env_files)

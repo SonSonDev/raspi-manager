@@ -1,0 +1,94 @@
+"""Form for a new app: name, GitHub repository, build and run commands, optional folder."""
+
+from __future__ import annotations
+
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QVBoxLayout,
+)
+
+from raspi.config.loader import ConfigError, parse_manifest
+from raspi.core.models import AppRef, Host
+
+
+def app_from_fields(name: str, repo: str, build: str, run: str, path: str) -> AppRef:
+    """Validate the form like the loader does. Raises ConfigError."""
+    entry = {"name": name.strip(), "unit": f"{name.strip()}.service", "repo": repo}
+    for key, value in (("build", build), ("run", run), ("path", path)):
+        if value.strip():
+            entry[key] = value.strip()
+    return parse_manifest({"version": 1, "apps": [entry]})[0]
+
+
+class InstallAppDialog(QDialog):
+    """On accept, `result_value` is the AppRef to install."""
+
+    def __init__(self, host: Host, parent=None) -> None:
+        super().__init__(parent)
+        self.result_value: AppRef | None = None
+        self._taken = {a.name for a in host.apps}
+        self.setWindowTitle(f"Install an app - {host.name}")
+        self.resize(560, 330)
+
+        intro = QLabel(
+            "Clones the repository on the Pi through its deploy key (create it first "
+            "with “Deploy key…”), runs the build command, then adds the app to the "
+            "Pi's inventory. Nothing is changed before you confirm."
+        )
+        intro.setWordWrap(True)
+        self.name_edit = self._line("App name", "notes-app")
+        self.repo_edit = self._line("GitHub repository", "owner/name")
+        self.build_edit = self._line("Build command", "npm ci && npm run build")
+        self.run_edit = self._line("Run command", "npm start")
+        self.path_edit = self._line("Folder on the Pi", "default: ~/apps/<name>")
+        self.error = QLabel("")
+        self.error.setObjectName("banner")
+        self.error.setVisible(False)
+
+        form = QFormLayout()
+        form.addRow("App name", self.name_edit)
+        form.addRow("Repository", self.repo_edit)
+        form.addRow("Build command", self.build_edit)
+        form.addRow("Run command", self.run_edit)
+        form.addRow("Folder (optional)", self.path_edit)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Check…")
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(intro)
+        layout.addLayout(form)
+        layout.addWidget(self.error)
+        layout.addWidget(buttons)
+
+    @staticmethod
+    def _line(accessible: str, placeholder: str) -> QLineEdit:
+        edit = QLineEdit()
+        edit.setAccessibleName(accessible)
+        edit.setPlaceholderText(placeholder)
+        return edit
+
+    def _accept(self) -> None:
+        try:
+            app = app_from_fields(
+                self.name_edit.text(),
+                self.repo_edit.text(),
+                self.build_edit.text(),
+                self.run_edit.text(),
+                self.path_edit.text(),
+            )
+            if app.name in self._taken:
+                raise ConfigError(f"{app.name} is already in the inventory")
+        except ConfigError as exc:
+            self.error.setText(str(exc))
+            self.error.setVisible(True)
+            return
+        self.result_value = app
+        self.accept()
