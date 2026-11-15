@@ -29,6 +29,15 @@
 - Row actions: restart is the primary inline action; stop/pause secondary; destructive (stop, rollback, delete env) smaller, separated and confirmed.
 - Keyboard: `/` filter, `j/k` move, `r` restart (confirm with Enter), `l` logs, `Esc` closes drawer.
 
+### Native app: menus + one slim toolbar, platform look (2026-11-15)
+**Direction change for the Qt app** (the web dashboard keeps "Ops Ledger"): the custom stylesheet and the 17 same-looking buttons were judged ugly (too tall, irregular, still too many buttons, style in general). The app now looks native: Qt's `windows11` style, system fonts, system light/dark and accent; a minimal stylesheet only adds the row-wide selection, comfortable toolbar buttons, the error banner and the monospace logs.
+- **Menu bar** (rare actions, one menu away): **Pi** (Check Pi… · Scan apps… · Publish apps to Pi… | Add a Pi… · Edit Pi… | Remove Pi…), **App** in workflow order (Deploy key… · Install app… · Environment… · Install unit… | Update…), **Cloudflare** (Set up route… · Cloudflare…).
+- **One slim toolbar** (daily use): Restart · Start · Stop · Logs | Environment · Update … Refresh (right). Disabled actions are greyed with a reason in the tooltip. Restart and Start stay mutually exclusive.
+- Every command is one QAction shared by its menu and the toolbar, so shortcuts are unchanged (F5, Ctrl+R, Ctrl+S, Ctrl+L, Ctrl+E, Ctrl+N, Ctrl+Shift+E, Ctrl+Shift+C) and exist once.
+- The table's **Next step** column sits right after Host and takes the free width; the state glyph + word column stays the anchor.
+- Action count: Restart, Stop, Logs, Environment, Update, Refresh, Start = 1 click (as before); setup actions and Pi actions = 2 clicks (menu, item) instead of 1, deliberate for rare actions (Hick).
+Rejected: three labelled rows of 17 buttons (tried the same day, judged ugly); a detail side panel (rework); right-click only (not discoverable).
+
 ### States
 Status is never conveyed by colour alone: always glyph + word.
 
@@ -56,7 +65,7 @@ Also design: loading (skeleton rows), empty (no app → show the exact CLI comma
 | `--err` | `#B3261E` | `#FF8A80` | failed / unreachable |
 | `--info` | `#5B6168` | `#9AA1A9` | working |
 
-All pairs must reach WCAG AA (4.5:1 text, 3:1 components) — **to be measured at apply time**, values above are starting points, not yet verified.
+All pairs must reach WCAG AA (4.5:1 text, 3:1 components). The native Qt app takes its text, background and button colours from the system palette (contrast is the platform's); only the table's state colours, the banner and the focus accent come from these tokens (ink 18.5 / 15.7, muted 6.3 / 7.3, error 6.5 / 8.4, accent 6.4 / 8.0 on white / near-black, measured 2026-11-15). Still to measure: ok, warn, info on the system's dark table background.
 
 - **Type**: IBM Plex Sans (UI) + IBM Plex Mono (logs, versions, hostnames, env keys) — open licence (SIL OFL). Scale 12 / 13 / 14 (base) / 16 / 20 / 28 px; line-height 1.45 text, 1.15 titles. `font-variant-numeric: tabular-nums` on versions and counters.
 - **Spacing**: 4 px unit; row height 36 px desktop (44 px under `pointer: coarse`).
@@ -74,3 +83,4 @@ Light pass (2026-10-17, T1 budget); no NN/g article surfaced, so no NN/g claim i
 
 ### Direction change log
 - 2026-10-17 — initial direction "Ops Ledger" chosen.
+- 2026-11-15 — native Qt app: tried three labelled rows of buttons with the custom stylesheet (judged ugly), replaced by a menu bar + one slim toolbar in the platform's own Windows 11 look; Next step column after Host. "Ops Ledger" stays the direction of the web dashboard.

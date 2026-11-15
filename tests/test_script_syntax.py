@@ -20,6 +20,7 @@ from raspi.core import (
     runtime,
     scan,
     unit,
+    update,
 )
 from raspi.core.models import AppRef, EnvFile
 
@@ -60,6 +61,10 @@ SCRIPTS = {
     "clone and build": install.build_install_script(APP, "missing"),
     "build existing": install.build_install_script(APP_NO_PATH, "repo"),
     "unit probe": unit.build_probe_script(APP),
+    "update probe": update.build_probe_script(APP),
+    "update probe ref": update.build_probe_script(APP, ref="v1.2/x"),
+    "update probe sha": update.build_probe_script(APP, sha="abc1234"),
+    "update": update.build_update_script(APP, "b" * 40),
     "unit install": unit.build_install_script(
         APP, unit.render_unit(APP, "pi", "/home/pi/apps/notes-app", "/n/bin")
     ),

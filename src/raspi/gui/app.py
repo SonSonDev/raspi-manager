@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QStyleFactory
 
 from raspi import APP_NAME
 from raspi.config.loader import ConfigError, HostsFileMissing, load_hosts
@@ -20,7 +20,9 @@ def _tokens(app: QApplication):
 
 def run() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setStyle("Fusion")
+    # the platform's own look (Windows 11 style, system colours, light/dark and fonts)
+    styles = QStyleFactory.keys()
+    app.setStyle("windows11" if "windows11" in styles else "Fusion")
     app.setApplicationName(APP_NAME)
     try:
         hosts, error = load_hosts(), ""

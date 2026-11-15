@@ -1,0 +1,109 @@
+"""Menu bar and toolbar of the main window.
+
+One QAction per command, shared by the menus and the toolbar (so a shortcut exists once):
+  toolbar (one slim line) - what is used every day: Restart, Start, Stop, Logs | Environment, Update | Refresh
+  menu Pi                 - look after a Pi (rare)
+  menu App                - set an app up, in workflow order
+  menu Cloudflare         - routes and the Cloudflare window
+Every command stays one menu away at most; none is hidden deeper. The look is the platform's
+(native Windows 11 style): this module only decides what goes where.
+"""
+
+from __future__ import annotations
+
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QSizePolicy, QToolBar, QWidget
+
+
+def _action(
+    window, attr: str, text: str, slot, shortcut: str = "", tip: str = ""
+) -> QAction:
+    action = QAction(text, window)
+    if shortcut:
+        action.setShortcut(QKeySequence(shortcut))
+    if tip:
+        action.setToolTip(tip)
+    elif shortcut:
+        action.setToolTip(f"{text.rstrip('…')} ({shortcut})")
+    action.triggered.connect(slot)
+    setattr(window, attr, action)  # the window enables and explains them (`btn_*`)
+    return action
+
+
+def build_chrome(window) -> None:
+    a = lambda *args, **kw: _action(window, *args, **kw)
+
+    restart = a("btn_restart", "Restart", lambda: window.act("restart"), "Ctrl+R")
+    start = a("btn_start", "Start", lambda: window.act("start"), "Ctrl+S")
+    stop = a("btn_stop", "Stop", lambda: window.act("stop"))
+    logs = a("btn_logs", "Logs", window.show_logs, "Ctrl+L")
+    env = a("btn_env", "Environment…", window.edit_env, "Ctrl+E")
+    update = a("btn_update", "Update…", window.update_app_form)
+    refresh = a("btn_refresh", "Refresh", window.refresh, "F5")
+
+    key = a(
+        "btn_key",
+        "Deploy key…",
+        window.deploy_key,
+        tip="Step 1 of a new app: the read-only GitHub key the Pi clones with",
+    )
+    install = a(
+        "btn_install",
+        "Install app…",
+        window.install_app_form,
+        tip="Step 2: clone the repository and build it (also updates its settings)",
+    )
+    unit = a("btn_unit", "Install unit…", window.install_unit_form)
+    route = a("btn_route", "Set up route…", window.setup_route)
+    cloudflare = a(
+        "btn_cloudflare", "Cloudflare…", window.open_cloudflare, "Ctrl+Shift+C"
+    )
+
+    check = a(
+        "btn_check",
+        "Check Pi…",
+        window.check_pi,
+        tip="Check what this Pi needs to run apps, and install the missing parts",
+    )
+    scan = a(
+        "btn_scan",
+        "Scan apps…",
+        window.scan_apps,
+        tip="Find services already running on this Pi and add them",
+    )
+    publish = a(
+        "btn_publish",
+        "Publish apps to Pi…",
+        window.publish_apps,
+        tip="Copy the app list kept on this PC to the Pi",
+    )
+    add = a("btn_add_host", "Add a Pi…", window.add_host, "Ctrl+N")
+    edit = a("btn_edit_host", "Edit Pi…", window.edit_host, "Ctrl+Shift+E")
+    remove = a("btn_remove_host", "Remove Pi…", window.remove_host)
+
+    menus = window.menuBar()
+    pi_menu = menus.addMenu("&Pi")
+    pi_menu.addActions([check, scan, publish])
+    pi_menu.addSeparator()
+    pi_menu.addActions([add, edit])
+    pi_menu.addSeparator()
+    pi_menu.addAction(remove)
+
+    app_menu = menus.addMenu("&App")
+    app_menu.addActions([key, install, env, unit])
+    app_menu.addSeparator()
+    app_menu.addAction(update)
+
+    cloud_menu = menus.addMenu("&Cloudflare")
+    cloud_menu.addActions([route, cloudflare])
+
+    bar = QToolBar("Actions")
+    bar.setMovable(False)
+    window.addToolBar(bar)
+    bar.addActions([restart, start, stop, logs])
+    bar.addSeparator()
+    bar.addActions([env, update])
+    spacer = QWidget()
+    spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    bar.addWidget(spacer)
+    bar.addAction(refresh)

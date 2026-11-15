@@ -24,6 +24,9 @@ class AppRef:
     build: str | None = None  # shell command run in the working copy after a checkout
     run: str | None = None  # command the app's systemd unit starts
     built: str | None = None  # git revision the last successful build was made from
+    previous: str | None = (
+        None  # revision built before the last update (rollback target)
+    )
 
 
 @dataclass(frozen=True)

@@ -29,7 +29,7 @@ Steps 2–6 are one guided flow, "New app" (⬜ as a single flow; ✅ as separat
 | 6 | Unit installed | “Install unit…” / `host install-unit` | 4, `run` declared, 5 (else warning), sudo | `/etc/systemd/system/<app>.service`, enable | unit file ours/foreign/missing, node bin, env files exist | unit enabled | `systemctl disable` + delete file by hand | ✅ |
 | 7 | Running | Start / Stop / Restart / Logs | 6 | systemd state | state | state `running` and logs clean | Stop | ✅ |
 | 8 | Routed | “Set up route…” / `route add` | 7 (port is read from the listening socket), Cloudflare set up | tunnel + ingress + DNS (Cloudflare), connector unit on the Pi | read-only plan | tunnel healthy, HTTPS answers | “Remove route”, “Delete tunnel…” | ✅ (never run on the real account) |
-| 9 | Update | “Update…” | 7 | `git fetch` + checkout of a ref, build, restart | what would change (old → new rev) | new rev running | roll back to the previous rev | ⬜ (F3) |
+| 9 | Update | “Update…” / `host update`, `host rollback` | 3, 4 (a working copy and a `repo`) | detached checkout of one commit, build, restart if it was running; `built` and `previous` recorded | fetch, then old → new revision, incoming commit subjects, dirty / local-only check | `built` equals the new revision; app running | “Update…” → go back / `host rollback` | ✅ (fake Pi; probe rehearsed read-only on `raspi-v`) |
 
 Entry path B, **adopt an existing service** (`Scan apps…` / `host adopt`): the app enters at step 6 (unit exists, not ours,
 never overwritten). Steps 2–4 are skipped; 5, 7, 8 apply as usual.
@@ -77,9 +77,12 @@ If code and this file disagree, say so and fix one of them in the same change.
 ## 6. Decisions taken on 2026-11-15 (all ⬜ unless the table above says otherwise)
 1. **Built marker** (✅). After a successful build, `built: <rev>` is recorded in the app's `apps.yaml` entry (only when a
    build is declared). “Built” and “needs rebuild” are then readable from the Pi (step 4, “Next step” column).
-2. **Update (step 9).** `git fetch`, fast-forward to the chosen ref (branch tip, tag or sha), build, restart. Refused when
-   the working copy has local changes. The previous revision is kept in `apps.yaml` (`previous: <rev>`) and rollback is a
-   checkout of it plus rebuild and restart. No `releases/<sha>` layout.
+2. **Update (step 9)** (✅). `git fetch`, then a **detached checkout of one exact commit** (branch tip, tag or sha: the same
+   mechanism for an update and a rollback), build, restart if the app was running. Refused when the working copy has
+   uncommitted changes to tracked files or commits that exist only on the Pi. After a successful update `built` is the new
+   revision and `previous: <rev>` the one before; a rollback returns to `previous`, or to `built` after a failed update
+   (the build then failed, nothing is restarted and nothing is recorded). No `releases/<sha>` layout. The fetch is the
+   only write of the plan and only touches `.git` remote-tracking refs, not the working tree or the running app.
 3. **“New app” wizard.** One form (name, repo, build, run, folder), asked once, then steps 2–6 one by one with a
    confirmation each and a progress list; when one fails the wizard reopens at that step. The separate buttons stay for
    special cases. The wizard is the “Install app…” entry point for a new app; for an existing app the same form is

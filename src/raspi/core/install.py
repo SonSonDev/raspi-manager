@@ -23,7 +23,7 @@ def work_dir(app: AppRef) -> str:
     return app.path or f"$HOME/apps/{app.name}"
 
 
-def _quoted_dir(app: AppRef) -> str:
+def quoted_dir(app: AppRef) -> str:
     # $HOME must stay expandable, so only the part after it is quoted
     if app.path:
         return shlex.quote(app.path)
@@ -33,7 +33,7 @@ def _quoted_dir(app: AppRef) -> str:
 def build_probe_script(app: AppRef) -> str:
     """Read-only: is the deploy key there, and what is at the target folder?"""
     key = key_path_for(app.name).replace("~", "$HOME", 1)
-    d = _quoted_dir(app)
+    d = quoted_dir(app)
     return (
         f'echo "key=$([ -f "{key}" ] && echo yes || echo no)"\n'
         f"if [ -d {d}/.git ]; then echo state=repo\n"
@@ -67,7 +67,7 @@ def build_install_script(app: AppRef, state: str) -> str:
     """Runs as the login user (no sudo). Prints `rev=<short commit>` on success."""
     if not app.repo:
         raise InstallError(f"{app.name} has no repo declared")
-    d = _quoted_dir(app)
+    d = quoted_dir(app)
     lines = ["set -e"]
     if state == "missing":
         lines += [

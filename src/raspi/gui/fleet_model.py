@@ -12,8 +12,8 @@ from raspi.core.models import AppRef, AppStatus, Host, HostStatus
 from raspi.core.stage import next_step
 from raspi.gui.theme import MONO, STATE_COLOR, STATE_GLYPH, Tokens
 
-COLUMNS = ("State", "App", "Host", "Version", "Since", "Restarts", "Next step")
-NEXT_COL = 6
+COLUMNS = ("State", "App", "Host", "Next step", "Version", "Since", "Restarts")
+NEXT_COL = 3
 
 
 @dataclass
@@ -144,18 +144,18 @@ class FleetModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.ForegroundRole and col == NEXT_COL:
             done = row.app and row.status and next_step(row.app, row.status).done
             return QBrush(QColor(self._tokens.muted if done else self._tokens.ink))
-        if role == Qt.ItemDataRole.ForegroundRole and (col >= 3 or row.app is None):
-            return QBrush(QColor(self._tokens.muted if col >= 4 else self._tokens.ink))
+        if role == Qt.ItemDataRole.ForegroundRole and (col >= 4 or row.app is None):
+            return QBrush(QColor(self._tokens.muted if col >= 5 else self._tokens.ink))
         if role == Qt.ItemDataRole.FontRole:
             if col == 0:
                 font = QFont()
                 font.setBold(True)
                 return font
-            if 3 <= col < NEXT_COL:
+            if col >= 4:
                 return QFont(MONO.split(",")[0].strip('" '))
         if role == Qt.ItemDataRole.ToolTipRole:
             return self._tooltip(row, state)
-        if role == Qt.ItemDataRole.TextAlignmentRole and col == 5:
+        if role == Qt.ItemDataRole.TextAlignmentRole and col == 6:
             return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         return None
 
@@ -171,12 +171,12 @@ class FleetModel(QAbstractTableModel):
         s = row.status
         if s is None:
             return "-"
-        if col == 3:
-            return (s.rev + ("*" if s.dirty else "")) if s.rev else "-"
-        if col == 4:
-            return s.since or "-"
         if col == NEXT_COL:
             return next_step(row.app, s).label or "-"
+        if col == 4:
+            return (s.rev + ("*" if s.dirty else "")) if s.rev else "-"
+        if col == 5:
+            return s.since or "-"
         return str(s.restarts)
 
     def _tooltip(self, row: Row, state: str) -> str | None:

@@ -24,7 +24,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 |---|---|
 | F1 Pis and provisioning | partial: add/edit/remove Pi, doctor, provision, Node, deploy key; uv, `role`, key wizard not done |
 | F2 App inventory | partial: Pi inventory, publish, adopt scan, declare env files, install app, install unit; remove/edit fields, `built`, `requires` not done |
-| F3 Deploy and versions | planned |
+| F3 Update and rollback | done (fake Pi) |
 | F4 Lifecycle and logs | partial |
 | F5 Environment variables | partial (GUI done, CLI `env` not done) |
 | F6 Cloudflare routing | partial (fake Cloudflare only) |
@@ -76,10 +76,18 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 - Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app, `requires`, the “New app”
   wizard (F7b).
 
-## F3 — Deploy and versions
-Status: `planned`. Decided 2026-11-15 (WORKFLOW §6): `fetch`, fast-forward to a chosen ref (branch, tag or sha), build,
-restart; refused when the working copy has local changes; the previous revision is kept for rollback; no
-`releases/<sha>` layout. `raspi deploy|rollback|versions`, GUI “Update…”.
+## F3 — Update and rollback
+Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`).
+- “Update…” / `host update NAME APP [--ref REF] [--dry-run] [--yes] [--no-restart]`: the plan fetches from GitHub, resolves the
+  ref (default: latest of the default branch; a branch, a tag or a commit), and shows old → new revision, the incoming
+  commit subjects, the steps and notes; refused for an app without `repo`, not cloned, with uncommitted changes to tracked
+  files, or with commits that exist only on the Pi. Applying checks out that exact commit (detached), runs the build with
+  nvm's Node, records `built` and `previous` in `apps.yaml`, and restarts the unit only if it was running (and sudo works).
+- Rollback: “Update…” → “Go back to the previous version” / `host rollback NAME APP`: same mechanism to `previous`, or to
+  the last `built` revision after a failed update; `previous` is cleared.
+- A failed build leaves the working copy on the new commit, restarts nothing, records nothing; the “Next step” column then
+  says “Build” and the error message points to the rollback.
+- Not done: listing available tags/branches in a picker, an “update available” hint in the table, keeping several releases.
 
 ## F4 — Lifecycle and logs
 - Done: `status` (state glyph + word, git rev with `*` when dirty, since, restarts, last checked, unreachable shown as an
@@ -128,7 +136,7 @@ Built and tested against a simulated Cloudflare only (never run on the real acco
   per-app routes in the main table.
 
 ## F7 — Main UI
-Native Qt app (`raspi gui`): live table, Restart/Start/Stop/Logs/Refresh with shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L),
+Native Qt app (`raspi gui`, platform look): menu bar (Pi, App in workflow order, Cloudflare) + one slim toolbar (Restart, Start, Stop, Logs | Environment, Update | Refresh), see DESIGN.md; live table, Restart/Start/Stop/Logs/Refresh with shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L),
 confirmation dialogs, logs dock, unreachable and “checking” states, light/dark. The web dashboard is a secondary front.
 Done: a **“Next step”** column per app (WORKFLOW §2: deploy key, clone, build, run command, environment, unit, start, ready) with the reason in the tooltip. Planned: the other buttons following the stage; “routed” in the column; version picker; tray icon. Every screen has loading, empty, error
 and success states.

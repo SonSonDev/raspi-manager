@@ -9,6 +9,7 @@ from rich.table import Table
 
 from raspi.cli.provision import register_provision
 from raspi.cli.route import route_app
+from raspi.cli.update import register_update
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.config.writer import add_host, remove_host, update_host
 from raspi.core.models import Host
@@ -330,6 +331,7 @@ def host_adopt(
 
 
 register_provision(host_app, lambda name: _live_host(name))
+register_update(host_app, lambda name: _live_host(name))
 
 
 @app.command()

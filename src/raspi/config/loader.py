@@ -138,6 +138,7 @@ def _apps(items: object) -> tuple[AppRef, ...]:
             else None,
             run=check_command(a["run"], "run command") if a.get("run") else None,
             built=check_rev(a["built"]) if a.get("built") else None,
+            previous=check_rev(a["previous"]) if a.get("previous") else None,
         )
         for a in items
     )
