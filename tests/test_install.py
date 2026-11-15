@@ -115,3 +115,23 @@ def test_cli_install_app_dry_run(monkeypatch):
         cli.app, ["host", "install-app", "pi", "x", "--repo", "nope"]
     )
     assert bad.exit_code == 1
+
+
+def test_reinstall_updates_the_entry_and_keeps_its_env_files():
+    from dataclasses import replace
+
+    from raspi.core.models import EnvFile
+
+    declared = replace(
+        APP,
+        build=None,
+        run=None,
+        env_files=(EnvFile("default", "/home/pi/x/.env"),),
+    )
+    host = Host("pi", "10.0.0.1", "pi", (declared,))
+    pi = Pi(state="repo")
+    first = install_app(host, pi, plan_install(host, pi, APP))
+    assert first.ok and "updated in the inventory" in first.message
+    saved = pi.manifest
+    assert "npm ci && npm run build" in saved and "run: npm start" in saved
+    assert "/home/pi/x/.env" in saved

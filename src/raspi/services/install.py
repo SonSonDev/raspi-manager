@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from raspi.core.install import (
     InstallError,
@@ -12,7 +12,7 @@ from raspi.core.install import (
     parse_probe,
 )
 from raspi.core.models import AppRef, Host
-from raspi.services.adopt import add_apps
+from raspi.services.adopt import add_apps, update_app
 from raspi.ssh.transport import Transport
 
 MIN_FREE_MB = 500
@@ -62,11 +62,19 @@ def install_app(
         return InstallResult(False, f"Install failed on {host.name}: {run.error}")
     rev = next((ln[4:] for ln in run.stdout.splitlines() if ln.startswith("rev=")), "")
     message = f"{plan.app.name} is built on {host.name}" + (f" at {rev}" if rev else "")
-    if register and all(a.name != plan.app.name for a in host.apps):
-        added = add_apps(host, (plan.app,), transport)
-        if not added.ok:
-            return InstallResult(
-                False, f"{message}, but not recorded: {added.message}", rev
-            )
-        message += "; added to the inventory"
+    if register:
+        known = next((a for a in host.apps if a.name == plan.app.name), None)
+        # the form knows nothing about env files: keep the ones already declared
+        wanted = replace(plan.app, env_files=known.env_files) if known else plan.app
+        if known != wanted:
+            if known is None:
+                saved, note = add_apps(host, (wanted,), transport), "added to"
+            else:
+                saved, note = update_app(host, wanted, transport), "updated in"
+
+            if not saved.ok:
+                return InstallResult(
+                    False, f"{message}, but not recorded: {saved.message}", rev
+                )
+            message += f"; {note} the inventory"
     return InstallResult(True, message, rev)

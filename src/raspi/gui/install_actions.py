@@ -34,7 +34,9 @@ class InstallMixin:
         host = self._live_host_of_selection()
         if host is None:
             return
-        dialog = InstallAppDialog(host, self)
+        row = self.selected()
+        existing = row.app if row and row.app and row.app.repo else None
+        dialog = InstallAppDialog(host, self, existing)
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
             return
         app = dialog.result_value
@@ -48,7 +50,7 @@ class InstallMixin:
     @Slot(object)
     def _on_install_planned(self, payload: tuple[Host, InstallPlan]) -> None:
         host, plan = payload
-        if not self._confirm(
+        if not self._confirm_change(
             f"Install {plan.app.name} on {host.name}?",
             plan.steps,
             [],
@@ -98,7 +100,7 @@ class InstallMixin:
     @Slot(object)
     def _on_unit_planned(self, payload: tuple[Host, UnitPlan]) -> None:
         host, plan = payload
-        if not self._confirm(
+        if not self._confirm_change(
             f"Create the unit of {plan.app.name} on {host.name}?",
             plan.steps,
             plan.warnings,
@@ -122,7 +124,7 @@ class InstallMixin:
         self._refresh_host(host.name)
 
     # --- shared --------------------------------------------------------------------
-    def _confirm(
+    def _confirm_change(
         self,
         title: str,
         steps: list[str],

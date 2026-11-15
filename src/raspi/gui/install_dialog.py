@@ -27,24 +27,39 @@ def app_from_fields(name: str, repo: str, build: str, run: str, path: str) -> Ap
 class InstallAppDialog(QDialog):
     """On accept, `result_value` is the AppRef to install."""
 
-    def __init__(self, host: Host, parent=None) -> None:
+    def __init__(self, host: Host, parent=None, existing: AppRef | None = None) -> None:
         super().__init__(parent)
         self.result_value: AppRef | None = None
-        self._taken = {a.name for a in host.apps}
-        self.setWindowTitle(f"Install an app - {host.name}")
+        self._existing = existing
+        self._taken = {a.name for a in host.apps} - (
+            {existing.name} if existing else set()
+        )
+        self.setWindowTitle(
+            f"{'Update' if existing else 'Install'} an app - {host.name}"
+        )
         self.resize(560, 330)
 
         intro = QLabel(
             "Clones the repository on the Pi through its deploy key (create it first "
             "with “Deploy key…”), runs the build command, then adds the app to the "
-            "Pi's inventory. Nothing is changed before you confirm."
+            "Pi's inventory (or updates it). The grey texts are examples, not "
+            "values. Nothing is changed before you confirm."
         )
         intro.setWordWrap(True)
-        self.name_edit = self._line("App name", "notes-app")
-        self.repo_edit = self._line("GitHub repository", "owner/name")
-        self.build_edit = self._line("Build command", "npm ci && npm run build")
-        self.run_edit = self._line("Run command", "npm start")
-        self.path_edit = self._line("Folder on the Pi", "default: ~/apps/<name>")
+        self.name_edit = self._line("App name", "e.g. notes-app")
+        self.repo_edit = self._line("GitHub repository", "e.g. owner/name")
+        self.build_edit = self._line(
+            "Build command", "e.g. npm ci && npm run build (empty: no build)"
+        )
+        self.run_edit = self._line("Run command", "e.g. npm start (required)")
+        self.path_edit = self._line("Folder on the Pi", "empty: ~/apps/<name>")
+        if existing:
+            self.name_edit.setText(existing.name)
+            self.name_edit.setReadOnly(True)
+            self.repo_edit.setText(existing.repo or "")
+            self.build_edit.setText(existing.build or "")
+            self.run_edit.setText(existing.run or "")
+            self.path_edit.setText(existing.path or "")
         self.error = QLabel("")
         self.error.setObjectName("banner")
         self.error.setVisible(False)
@@ -84,6 +99,10 @@ class InstallAppDialog(QDialog):
                 self.run_edit.text(),
                 self.path_edit.text(),
             )
+            if not app.run:
+                raise ConfigError(
+                    "A run command is required (e.g. npm start): the app's service needs it"
+                )
             if app.name in self._taken:
                 raise ConfigError(f"{app.name} is already in the inventory")
         except ConfigError as exc:
