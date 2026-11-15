@@ -16,5 +16,6 @@ $sh.TargetPath = $pythonw
 $sh.Arguments = '-m raspi.gui'
 $sh.WorkingDirectory = $root
 $sh.Description = 'raspi-manager - manage your Raspberry Pi'
+$sh.IconLocation = (Join-Path $root 'src\raspi\gui\assets\raspi-manager.ico') + ',0'
 $sh.Save()
 Write-Host "Shortcut created: $lnk"

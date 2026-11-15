@@ -9,6 +9,8 @@ from __future__ import annotations
 import shlex
 from dataclasses import dataclass
 
+from raspi.core.tools import ffmpeg_short
+
 APPS_DIR = "apps"  # relative to the login user's home
 MIN_DISK_MB = 1024
 APT_PACKAGES = ("git", "curl")  # the only packages provision may install
@@ -37,6 +39,8 @@ def build_check_script() -> str:
         'n=$(command -v node || ls -d "$HOME"/.nvm/versions/node/*/bin/node 2>/dev/null | tail -1)\n'
         'echo "node=$([ -n "$n" ] && "$n" --version 2>/dev/null)"\n'
         'echo "cloudflared=$(cloudflared --version 2>/dev/null | head -1)"\n'
+        'echo "ffmpeg=$(ffmpeg -version 2>/dev/null | head -1)"\n'
+        'echo "ytdlp=$(yt-dlp --version 2>/dev/null)"\n'
         f'echo "apps_dir=$([ -d "$HOME/{APPS_DIR}" ] && echo yes || echo no)"\n'
         'echo "disk_mb=$(df -Pm "$HOME" 2>/dev/null | awk \'NR==2{print $4}\')"\n'
         "echo \"mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null)\"\n"
@@ -124,6 +128,22 @@ def parse_checks(output: str) -> list[Check]:
             v.get("cloudflared") or "not installed",
             required=False,
             fix="Installed by “Set up route…” when an app goes online.",
+        ),
+        Check(
+            "ffmpeg",
+            "ffmpeg",
+            bool(v.get("ffmpeg")),
+            ffmpeg_short(v["ffmpeg"]) if v.get("ffmpeg") else "not installed",
+            required=False,
+            fix="Needed by apps that convert audio or video: Pi → Install tools…",
+        ),
+        Check(
+            "ytdlp",
+            "yt-dlp",
+            bool(v.get("ytdlp")),
+            v.get("ytdlp") or "not installed",
+            required=False,
+            fix="Needed by apps that download media: Pi → Install tools…",
         ),
         Check("mem", "Memory", True, f"{mem} MB" if mem else "unknown", required=False),
     ]

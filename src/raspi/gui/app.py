@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication, QStyleFactory
 
 from raspi import APP_NAME
 from raspi.config.loader import ConfigError, HostsFileMissing, load_hosts
+from raspi.gui.icon import app_icon, set_windows_identity
 from raspi.gui.main_window import MainWindow
 from raspi.gui.theme import DARK, LIGHT, stylesheet
 from raspi.ssh.transport import SshTransport
@@ -19,7 +20,9 @@ def _tokens(app: QApplication):
 
 
 def run() -> int:
+    set_windows_identity()  # before any window: the taskbar then shows our icon
     app = QApplication.instance() or QApplication(sys.argv)
+    app.setWindowIcon(app_icon())
     # the platform's own look (Windows 11 style, system colours, light/dark and fonts)
     styles = QStyleFactory.keys()
     app.setStyle("windows11" if "windows11" in styles else "Fusion")

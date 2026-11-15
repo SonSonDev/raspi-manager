@@ -37,6 +37,7 @@ from raspi.gui.remove_actions import RemoveActionsMixin
 from raspi.gui.route_actions import RouteMixin
 from raspi.gui.setup_panel import SetupPanel
 from raspi.gui.theme import Tokens
+from raspi.gui.tools_actions import ToolsMixin
 from raspi.gui.update_actions import UpdateMixin
 from raspi.gui.workers import submit
 from raspi.services.actions import ActionResult, read_logs, run_action
@@ -56,6 +57,7 @@ class MainWindow(
     InstallMixin,
     NewAppMixin,
     RemoveActionsMixin,
+    ToolsMixin,
     UpdateMixin,
     EnvActionsMixin,
     RouteMixin,
@@ -192,6 +194,7 @@ class MainWindow(
         self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_update.setEnabled(self.can_update())
         self.btn_new.setEnabled(self.can_install_app())
+        self.btn_tools.setEnabled(self.can_install_tools())
         self.btn_remove_app.setEnabled(self.can_remove_app())
         self.btn_continue.setEnabled(self.can_continue_setup())
         self.btn_update.setToolTip(self.update_tooltip())

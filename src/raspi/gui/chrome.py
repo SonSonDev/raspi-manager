@@ -78,6 +78,12 @@ def build_chrome(window) -> None:
         "btn_cloudflare", "Cloudflare…", window.open_cloudflare, "Ctrl+Shift+C"
     )
 
+    tools = a(
+        "btn_tools",
+        "Install tools…",
+        window.install_tools_form,
+        tip="Install ffmpeg and yt-dlp on this Pi, for apps that need them",
+    )
     check = a(
         "btn_check",
         "Check Pi…",
@@ -102,7 +108,7 @@ def build_chrome(window) -> None:
 
     menus = window.menuBar()
     pi_menu = menus.addMenu("&Pi")
-    pi_menu.addActions([check, scan, publish])
+    pi_menu.addActions([check, tools, scan, publish])
     pi_menu.addSeparator()
     pi_menu.addActions([add, edit])
     pi_menu.addSeparator()

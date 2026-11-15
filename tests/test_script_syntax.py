@@ -20,6 +20,7 @@ from raspi.core import (
     remove,
     runtime,
     scan,
+    tools,
     unit,
     update,
 )
@@ -67,6 +68,20 @@ SCRIPTS = {
     "clone and build": install.build_install_script(APP, "missing"),
     "build existing": install.build_install_script(APP_NO_PATH, "repo"),
     "unit probe": unit.build_probe_script(APP),
+    "tools probe": tools.build_probe_script(),
+    "tools ffmpeg and file": tools.build_tools_script(
+        True,
+        tools.YtDlpDownload("2026.10.26", "yt-dlp_linux_aarch64", "file", "a" * 64),
+        [],
+    ),
+    "tools bundle": tools.build_tools_script(
+        False,
+        tools.YtDlpDownload(
+            "2026.10.26", "yt-dlp_linux_armv7l.zip", "bundle", "a" * 64
+        ),
+        ["unzip"],
+    ),
+    "tools ffmpeg only": tools.build_tools_script(True, None, []),
     "remove probe": remove.build_probe_script(APP),
     "remove everything": remove.build_remove_script(
         APP, set(remove.ORDER), remove.RemoveFacts(env_present=(True,))

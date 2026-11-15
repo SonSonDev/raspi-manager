@@ -31,12 +31,18 @@
 
 ### Native app: menus + one slim toolbar, platform look (2026-11-15)
 **Direction change for the Qt app** (the web dashboard keeps "Ops Ledger"): the custom stylesheet and the 17 same-looking buttons were judged ugly (too tall, irregular, still too many buttons, style in general). The app now looks native: Qt's `windows11` style, system fonts, system light/dark and accent; a minimal stylesheet only adds the row-wide selection, comfortable toolbar buttons, the error banner and the monospace logs.
-- **Menu bar** (rare actions, one menu away): **Pi** (Check Pi… · Scan apps… · Publish apps to Pi… | Add a Pi… · Edit Pi… | Remove Pi…), **App** (New app… · Continue setup… | Deploy key… · Install app… · Environment… · Install unit… | Update…), **Cloudflare** (Set up route… · Cloudflare…).
+- **Menu bar** (rare actions, one menu away): **Pi** (Check Pi… · Install tools… · Scan apps… · Publish apps to Pi… | Add a Pi… · Edit Pi… | Remove Pi…), **App** (New app… · Continue setup… | Deploy key… · Install app… · Environment… · Install unit… | Update…), **Cloudflare** (Set up route… · Cloudflare…).
 - **One slim toolbar** (daily use): Restart · Start · Stop · Logs | Environment · Update … Refresh (right). Disabled actions are greyed with a reason in the tooltip. Restart and Start stay mutually exclusive.
 - Every command is one QAction shared by its menu and the toolbar, so shortcuts are unchanged (F5, Ctrl+R, Ctrl+S, Ctrl+L, Ctrl+E, Ctrl+N, Ctrl+Shift+E, Ctrl+Shift+C) and exist once.
 - The table's **Next step** column sits right after Host and takes the free width; the state glyph + word column stays the anchor.
 - Action count: Restart, Stop, Logs, Environment, Update, Refresh, Start = 1 click (as before); setup actions and Pi actions = 2 clicks (menu, item) instead of 1, deliberate for rare actions (Hick).
 Rejected: three labelled rows of 17 buttons (tried the same day, judged ugly); a detail side panel (rework); right-click only (not discoverable).
+
+### App icon (2026-11-15)
+A rounded blue square (`--accent` `#0B57D0`) holding three white rows, the app in one picture: a fleet table with a status dot in front of each row (two green running, one empty ring for stopped, as in the table's glyph + word). Flat, no gradient, no Raspberry Pi logo (a trademark). It stays readable from 256 px down to 16 px, on light and dark backgrounds (checked on a contact sheet).
+- Source of truth: `src/raspi/gui/assets/raspi-manager.svg`. `scripts/make-icon.py` renders it with Qt into `raspi-manager.ico` (7 PNG sizes, 16 to 256) and `raspi-manager.png`; re-run it when the SVG changes.
+- Used for the window and taskbar (`gui/icon.py`, plus a Windows AppUserModelID so the taskbar groups the app under its own icon instead of pythonw's) and for the Desktop shortcut (`scripts/install-shortcut.ps1`); the launcher `D:\Dev\LAUNCHERS
+aspi-manager.lnk` points at the same `.ico`.
 
 ### States
 Status is never conveyed by colour alone: always glyph + word.
@@ -83,4 +89,4 @@ Light pass (2026-10-17, T1 budget); no NN/g article surfaced, so no NN/g claim i
 
 ### Direction change log
 - 2026-10-17 — initial direction "Ops Ledger" chosen.
-- 2026-11-15 — native Qt app: tried three labelled rows of buttons with the custom stylesheet (judged ugly), replaced by a menu bar + one slim toolbar in the platform's own Windows 11 look; Next step column after Host. "Ops Ledger" stays the direction of the web dashboard.
+- 2026-11-15 — app icon added (see above). Native Qt app: tried three labelled rows of buttons with the custom stylesheet (judged ugly), replaced by a menu bar + one slim toolbar in the platform's own Windows 11 look; Next step column after Host. "Ops Ledger" stays the direction of the web dashboard.

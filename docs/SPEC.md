@@ -49,6 +49,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   keys to `known_hosts` when github.com is absent (read by the PC from `api.github.com/meta` over HTTPS), shows the public
   key to add as a read-only deploy key, and with `--repo` checks it with `git ls-remote` (“Check again”). Existing keys and
   settings are kept.
+- **Tools** (done, fake Pi; the read-only plan rehearsed on `raspi` and `raspi-v`): **Pi → Install tools…** / `host install-tools NAME [ffmpeg] [yt-dlp] [--dry-run] [--yes]`. A picker shows what the Pi has and ticks what is missing or old. ffmpeg comes from the distribution through apt. yt-dlp comes from the latest official GitHub release (Debian's package is months old): the file for the Pi's architecture (`yt-dlp_linux` x86_64, `yt-dlp_linux_aarch64` a single executable, `yt-dlp_linux_armv7l.zip` a zipped folder unpacked in `/opt/yt-dlp`), its SHA-256 from the release's `SHA2-256SUMS`, run once (`--version`) before anything is replaced, installed as `/usr/local/bin/yt-dlp` (root, 755; in the PATH of raspi's units); installing again updates it. Needs passwordless sudo and curl; the 32-bit bundle also needs unzip (installed through apt). “Check Pi…” lists both tools as optional. The release signature (`.sig`) is not verified, only the checksum.
 - Not done: installing uv (method open), `role`, a key-install wizard (the SSH key is a terminal step).
 
 ## F2 — App inventory and install

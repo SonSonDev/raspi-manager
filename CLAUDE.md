@@ -62,7 +62,7 @@
 ## Commands
 `uv` is on PATH (`Python314/Scripts`). Do not use `python -m uv` from a shell where `.venv` comes first on PATH: it fails with "No module named uv".
 - `uv sync` · `uv run pytest` · `uv run ruff check .` · `uv run ruff format .` (GUI tests: set `QT_QPA_PLATFORM=offscreen`)
-- Commands: `raspi-manager` (aliases `raspi`, `rpim`). Without a subcommand it opens the native app window; `uv run raspi-manager status|logs|start|stop|restart|web`; provisioning and install commands are under `raspi host ...` (see WORKFLOW.md). Desktop shortcut via `scripts/install-shortcut.ps1`; no-console launcher `raspi-manager.vbs`.
+- Commands: `raspi-manager` (aliases `raspi`, `rpim`). Without a subcommand it opens the native app window; `uv run raspi-manager status|logs|start|stop|restart|web`; icon: `uv run python scripts/make-icon.py` after editing `src/raspi/gui/assets/raspi-manager.svg`; provisioning and install commands are under `raspi host ...` (see WORKFLOW.md). Desktop shortcut via `scripts/install-shortcut.ps1`; no-console launcher `raspi-manager.vbs`.
 - `raspi-manager status` (read-only live state) · `raspi-manager logs <app> -n 50` (read-only) · `raspi-manager start|stop|restart <app> [--dry-run] [--yes]` (**changes a Pi: only the developer runs these, never Claude**) · `raspi-manager web` (http://127.0.0.1:8765)
 - Every `subprocess` call from the GUI must pass `creationflags=CREATE_NO_WINDOW` (done in `ssh/transport.py`, covered by `tests/test_transport.py`), otherwise Windows flashes a console window per call.
 - Config: `~/.raspi/hosts.yaml` (hosts and their apps). Subprocess input to ssh must be bytes (Windows would otherwise send CRLF to `sh`).

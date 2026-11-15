@@ -21,7 +21,7 @@ Steps 2–6 and the start are one guided flow, **App → New app…** (✅), whi
 | # | Step | UI / CLI | Prerequisite | Changes on the Pi | Read-only check first | Verified by | Undo | Status |
 |---|---|---|---|---|---|---|---|---|
 | 0 | Add the Pi | “Add a Pi…” / `host add` | SSH key access works (PI-SETUP) | nothing (PC `hosts.yaml` only) | table shows reachable | Pi row not “unreachable” | “Remove Pi…” | ✅ |
-| 1 | Pi ready | “Check Pi…” / `host doctor`; “Install missing…” / `host provision`; “Install Node…” / `host install-node` | 0 | apt `git`, `curl`; `~/apps`; nvm + Node | doctor report | doctor all ✓ | apt remove / `rm -rf ~/.nvm` by hand | ✅ (uv ⬜) |
+| 1 | Pi ready | “Check Pi…” / `host doctor`; “Install missing…” / `host provision`; “Install Node…” / `host install-node`; **Pi → Install tools…** / `host install-tools` (ffmpeg through apt, yt-dlp from the official release; for apps that need them) | 0 | apt `git`, `curl`; `~/apps`; nvm + Node | doctor report | doctor all ✓ | apt remove / `rm -rf ~/.nvm` by hand | ✅ (uv ⬜) |
 | 2 | Key ready | “Deploy key…” / `host deploy-key` | 1 (git) | `~/.ssh/raspi_deploy_<app>`, `~/.ssh/config` block, `known_hosts` | — | `git ls-remote` via the alias succeeds | delete the 2 files + config block; remove the key on GitHub | ✅ |
 | 3 | Cloned | “Install app…” / `host install-app` | 2, repo declared | `git clone` into `~/apps/<app>` | key present, disk ≥ 500 MB, folder state | folder is a git working copy at a known rev | `rm -rf` the folder | ✅ |
 | 4 | Built | same action (runs `build`) | 3, Node ready, `build` declared (may be empty) | `build` output in the working copy; `built: <rev>` in `apps.yaml` | — | build exit code 0 and `built` equals the working copy revision | `git clean` by hand | ✅ |

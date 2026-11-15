@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>raspi-manager</title>
+  <!-- the app in one picture: a fleet table, one row per app, a status dot in front of each -->
+  <rect width="256" height="256" rx="58" fill="#0B57D0"/>
+  <rect x="34" y="30" width="188" height="14" rx="7" fill="#FFFFFF" opacity="0.35"/>
+
+  <rect x="34" y="62" width="188" height="48" rx="16" fill="#FFFFFF"/>
+  <circle cx="64" cy="86" r="13" fill="#1F9D55"/>
+  <rect x="90" y="78" width="84" height="16" rx="8" fill="#0B57D0"/>
+  <rect x="184" y="80" width="24" height="12" rx="6" fill="#0B57D0" opacity="0.35"/>
+
+  <rect x="34" y="120" width="188" height="48" rx="16" fill="#FFFFFF"/>
+  <circle cx="64" cy="144" r="13" fill="#1F9D55"/>
+  <rect x="90" y="136" width="64" height="16" rx="8" fill="#0B57D0"/>
+  <rect x="164" y="138" width="44" height="12" rx="6" fill="#0B57D0" opacity="0.35"/>
+
+  <rect x="34" y="178" width="188" height="48" rx="16" fill="#FFFFFF"/>
+  <circle cx="64" cy="202" r="11" fill="none" stroke="#7A8088" stroke-width="5"/>
+  <rect x="90" y="194" width="76" height="16" rx="8" fill="#0B57D0" opacity="0.55"/>
+  <rect x="176" y="196" width="32" height="12" rx="6" fill="#0B57D0" opacity="0.35"/>
+</svg>
