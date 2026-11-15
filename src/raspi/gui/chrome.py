@@ -3,7 +3,7 @@
 One QAction per command, shared by the menus and the toolbar (so a shortcut exists once):
   toolbar (one slim line) - what is used every day: Restart, Start, Stop, Logs | Environment, Update | Refresh
   menu Pi                 - look after a Pi (rare)
-  menu App                - set an app up, in workflow order
+  menu App                - New app… / Continue setup… (the wizard), then each step on its own, in workflow order
   menu Cloudflare         - routes and the Cloudflare window
 Every command stays one menu away at most; none is hidden deeper. The look is the platform's
 (native Windows 11 style): this module only decides what goes where.
@@ -41,6 +41,19 @@ def build_chrome(window) -> None:
     update = a("btn_update", "Update…", window.update_app_form)
     refresh = a("btn_refresh", "Refresh", window.refresh, "F5")
 
+    new_app = a(
+        "btn_new",
+        "New app…",
+        window.new_app,
+        "Ctrl+Shift+N",
+        "Set an app up from start to finish: key, clone and build, environment, unit, start",
+    )
+    resume = a(
+        "btn_continue",
+        "Continue setup…",
+        window.continue_setup,
+        tip="Reopen the setup of the selected app where it stopped",
+    )
     key = a(
         "btn_key",
         "Deploy key…",
@@ -90,6 +103,8 @@ def build_chrome(window) -> None:
     pi_menu.addAction(remove)
 
     app_menu = menus.addMenu("&App")
+    app_menu.addActions([new_app, resume])
+    app_menu.addSeparator()
     app_menu.addActions([key, install, env, unit])
     app_menu.addSeparator()
     app_menu.addAction(update)

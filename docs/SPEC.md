@@ -29,7 +29,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 | F5 Environment variables | partial (GUI done, CLI `env` not done) |
 | F6 Cloudflare routing | partial (fake Cloudflare only) |
 | F7 Main UI | partial |
-| F7b Guided “New app” wizard | planned (decided 2026-11-15) |
+| F7b Guided “New app” wizard | done (fake Pi) |
 | F8 Fleet health | planned |
 
 ## F1 — Pis and provisioning
@@ -142,10 +142,8 @@ Done: a **“Next step”** column per app (WORKFLOW §2: deploy key, clone, bui
 and success states.
 
 ## F7b — Guided “New app” wizard
-Status: `planned`, decided 2026-11-15 (WORKFLOW §6). One form (name, repository, build, run, folder) asked once, then key,
-clone, build, environment (pre-filled from `.env.example`), unit, each with a confirmation and a progress list, resuming
-at the failed step. Separate buttons stay for special cases. Also planned: an “Add a Pi” key-install wizard, pre-flight
-checks, “Remove app…” (ticked items, typed name, data folders never deleted).
+Status: `done` with a fake Pi (the step states were read for real, read-only, on `raspi-v`). **App → New app…** (Ctrl+Shift+N): one form (name, repository, build, run, folder; run required), then a window listing five steps with a glyph (✓ done, ▶ current, ○ waiting) and a detail each: deploy key (created and checked with GitHub; a key GitHub refuses shows the public key to add), clone and build, environment (the existing editor, pre-filled from `.env.example`; or “the app needs no environment file”, remembered for the session only), systemd unit, start. Each step asks for confirmation with the exact script. The state is re-read from the Pi before and after every step, so closing the window at any point is safe: **App → Continue setup…** on the selected app reopens it at the first step not done. At the end it points to Cloudflare → Set up route….
+Not done: an “Add a Pi” key-install wizard, pre-flight checks, “Remove app…” (ticked items, typed name, data folders never deleted).
 
 ## Project compatibility checklist (what an app needs to be managed by raspi)
 1. A git repo with a remote (deploy by ref). 2. A declared Node/Python version (`engines`, `.nvmrc`). 3. A build step as a

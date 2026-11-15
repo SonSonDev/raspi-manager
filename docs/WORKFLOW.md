@@ -16,7 +16,7 @@ Pi added ──► Pi ready ──► Key ready ──► Cloned ──► Built
  (0)          (1)          (2)          (3)        (4)         (5)             (6)               (7)        (8)
                                                                                          Update (9): new version → build → restart
 ```
-Steps 2–6 are one guided flow, "New app" (⬜ as a single flow; ✅ as separate buttons). Step 9 loops back to 4–7.
+Steps 2–6 and the start are one guided flow, **App → New app…** (✅), which can be closed and reopened with **App → Continue setup…** where it stopped; each step is also a menu item of its own for special cases. Step 9 loops back to 4–7.
 
 | # | Step | UI / CLI | Prerequisite | Changes on the Pi | Read-only check first | Verified by | Undo | Status |
 |---|---|---|---|---|---|---|---|---|
@@ -83,10 +83,13 @@ If code and this file disagree, say so and fix one of them in the same change.
    revision and `previous: <rev>` the one before; a rollback returns to `previous`, or to `built` after a failed update
    (the build then failed, nothing is restarted and nothing is recorded). No `releases/<sha>` layout. The fetch is the
    only write of the plan and only touches `.git` remote-tracking refs, not the working tree or the running app.
-3. **“New app” wizard.** One form (name, repo, build, run, folder), asked once, then steps 2–6 one by one with a
-   confirmation each and a progress list; when one fails the wizard reopens at that step. The separate buttons stay for
-   special cases. The wizard is the “Install app…” entry point for a new app; for an existing app the same form is
-   pre-filled (“Update an app”).
+3. **“New app” wizard** (✅, fake Pi). One form (name, repo, build, run, folder) asked once, then a window with five steps (deploy
+   key, clone and build, environment, unit, start), each with its own confirmation showing the exact script; only the first
+   step not done is actionable. Done-ness is re-read from the Pi before and after every step, so a failed or abandoned step
+   leaves nothing half-recorded and the wizard reopens at that step (**Continue setup…** on the selected app). The key step
+   is done only once GitHub accepted the key in this session (or the repo is cloned); a key GitHub refuses shows the public
+   key to add; the environment step opens the existing editor (template pre-fill, 6a) or “the app needs no environment
+   file” (kept for the session only); the wizard ends by suggesting Cloudflare → Set up route…. The separate menu items stay.
 4. **Prerequisites of an app.** Optional `requires:` list in `apps.yaml` (kinds: folder exists, file exists, mount point
    present). Checked read-only by the plan of step 7 and reported by name; raspi never creates them (so nothing is written
    to the SD card by mistake). Notes App's data folder and marker file are the first use.
@@ -117,4 +120,5 @@ If code and this file disagree, say so and fix one of them in the same change.
 | 2026-11-15 | raspi-v | 3 clone | ✓ done by the developer; **build/run left empty** (form showed grey examples) → fixed (required `run`, “Update an app”) |
 | 2026-11-15 | raspi-v | transport change (whole-script read) | ✓ `host doctor` and `status` run through it; notes-app shows “– no unit” |
 | 2026-11-15 | raspi-v | “Next step” column (read-only) | notes-app: cloned at 2f62548, key present, not built → “Build (Install app…)”; on `raspi`: example-bot and chat-bot “✓ Ready”, web-game “Start” |
-| 2026-11-15 | raspi-v | 4–9 | not run yet |
+| 2026-11-15 | raspi-v | wizard steps read for notes-app (read-only) | all five steps ✓: key used by the clone, built, 1 env file on the Pi, unit exists, running |
+| 2026-11-15 | raspi-v | 4–9 | notes-app was taken through them by the developer by hand; the wizard itself has not been run on a Pi yet |

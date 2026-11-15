@@ -28,6 +28,7 @@ from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import NEXT_COL, FleetModel, Row
 from raspi.gui.host_actions import HostActionsMixin
 from raspi.gui.install_actions import InstallMixin
+from raspi.gui.newapp_actions import NewAppMixin
 from raspi.gui.provision_actions import ProvisionMixin
 from raspi.gui.publish_actions import PublishMixin
 from raspi.gui.route_actions import RouteMixin
@@ -50,6 +51,7 @@ class MainWindow(
     ProvisionMixin,
     DeployKeyMixin,
     InstallMixin,
+    NewAppMixin,
     UpdateMixin,
     EnvActionsMixin,
     RouteMixin,
@@ -185,6 +187,8 @@ class MainWindow(
         self.btn_start.setToolTip(self.start_tooltip(state))
         self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_update.setEnabled(self.can_update())
+        self.btn_new.setEnabled(self.can_install_app())
+        self.btn_continue.setEnabled(self.can_continue_setup())
         self.btn_update.setToolTip(self.update_tooltip())
         self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))

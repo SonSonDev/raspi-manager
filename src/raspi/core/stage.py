@@ -21,7 +21,7 @@ class Next:
     done: bool = False
 
 
-def _same_rev(a: str, b: str) -> bool:
+def same_rev(a: str, b: str) -> bool:
     """Short revisions can differ in length: compare as prefixes."""
     return bool(a and b) and (a.startswith(b) or b.startswith(a))
 
@@ -39,7 +39,7 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
                     "The repository cannot be cloned without a deploy key",
                 )
             return Next("Install app…", "Clone the repository and build it")
-        if app.build and not _same_rev(app.built or "", status.rev):
+        if app.build and not same_rev(app.built or "", status.rev):
             why = (
                 "The working copy changed since the last build"
                 if app.built

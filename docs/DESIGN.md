@@ -31,7 +31,7 @@
 
 ### Native app: menus + one slim toolbar, platform look (2026-11-15)
 **Direction change for the Qt app** (the web dashboard keeps "Ops Ledger"): the custom stylesheet and the 17 same-looking buttons were judged ugly (too tall, irregular, still too many buttons, style in general). The app now looks native: Qt's `windows11` style, system fonts, system light/dark and accent; a minimal stylesheet only adds the row-wide selection, comfortable toolbar buttons, the error banner and the monospace logs.
-- **Menu bar** (rare actions, one menu away): **Pi** (Check Pi… · Scan apps… · Publish apps to Pi… | Add a Pi… · Edit Pi… | Remove Pi…), **App** in workflow order (Deploy key… · Install app… · Environment… · Install unit… | Update…), **Cloudflare** (Set up route… · Cloudflare…).
+- **Menu bar** (rare actions, one menu away): **Pi** (Check Pi… · Scan apps… · Publish apps to Pi… | Add a Pi… · Edit Pi… | Remove Pi…), **App** (New app… · Continue setup… | Deploy key… · Install app… · Environment… · Install unit… | Update…), **Cloudflare** (Set up route… · Cloudflare…).
 - **One slim toolbar** (daily use): Restart · Start · Stop · Logs | Environment · Update … Refresh (right). Disabled actions are greyed with a reason in the tooltip. Restart and Start stay mutually exclusive.
 - Every command is one QAction shared by its menu and the toolbar, so shortcuts are unchanged (F5, Ctrl+R, Ctrl+S, Ctrl+L, Ctrl+E, Ctrl+N, Ctrl+Shift+E, Ctrl+Shift+C) and exist once.
 - The table's **Next step** column sits right after Host and takes the free width; the state glyph + word column stays the anchor.

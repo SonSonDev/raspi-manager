@@ -27,7 +27,13 @@ def app_from_fields(name: str, repo: str, build: str, run: str, path: str) -> Ap
 class InstallAppDialog(QDialog):
     """On accept, `result_value` is the AppRef to install."""
 
-    def __init__(self, host: Host, parent=None, existing: AppRef | None = None) -> None:
+    def __init__(
+        self,
+        host: Host,
+        parent=None,
+        existing: AppRef | None = None,
+        wizard: bool = False,
+    ) -> None:
         super().__init__(parent)
         self.result_value: AppRef | None = None
         self._existing = existing
@@ -35,12 +41,16 @@ class InstallAppDialog(QDialog):
             {existing.name} if existing else set()
         )
         self.setWindowTitle(
-            f"{'Update' if existing else 'Install'} an app - {host.name}"
+            f"{'Update' if existing else 'New' if wizard else 'Install'} an app - {host.name}"
         )
         self.resize(560, 330)
 
         intro = QLabel(
-            "Clones the repository on the Pi through its deploy key (create it first "
+            "Tell it once what the app is; the next window then takes it through the "
+            "deploy key, the clone and build, the environment, the unit and the start, "
+            "one confirmed step at a time. The grey texts are examples, not values."
+            if wizard
+            else "Clones the repository on the Pi through its deploy key (create it first "
             "with “Deploy key…”), runs the build command, then adds the app to the "
             "Pi's inventory (or updates it). The grey texts are examples, not "
             "values. Nothing is changed before you confirm."
@@ -73,7 +83,9 @@ class InstallAppDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Check…")
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(
+            "Start setup" if wizard else "Check…"
+        )
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
 

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 from raspi import APP_NAME
 from raspi.core.models import Host
+from raspi.gui.confirm import confirm_change
 from raspi.gui.install_dialog import InstallAppDialog
 from raspi.gui.workers import submit
 from raspi.services.install import InstallPlan, install_app, plan_install
@@ -139,29 +140,8 @@ class InstallMixin:
         self._refresh_host(host.name)
 
     # --- shared --------------------------------------------------------------------
-    def _confirm_change(
-        self,
-        title: str,
-        steps: list[str],
-        warnings: list[str],
-        details: str,
-        button: str,
-    ) -> bool:
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle(APP_NAME)
-        box.setText(title)
-        text = "This changes the Pi:\n" + "\n".join(f"• {s}" for s in steps)
-        if warnings:
-            text += "\n\nCheck first:\n" + "\n".join(f"! {w}" for w in warnings)
-        box.setInformativeText(text)
-        box.setDetailedText(details)
-        confirm = box.addButton(button, QMessageBox.ButtonRole.AcceptRole)
-        cancel = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(cancel)
-        box.setEscapeButton(cancel)
-        box.exec()
-        if box.clickedButton() is confirm:
+    def _confirm_change(self, title, steps, warnings, details, button) -> bool:
+        if confirm_change(self, title, steps, warnings, details, button):
             return True
         self.status_label.setText("Cancelled, nothing was changed.")
         return False
