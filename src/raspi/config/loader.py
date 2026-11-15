@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 from raspi.core.deploykey import DeployKeyError, check_repo
-from raspi.core.models import AppRef, EnvFile, Host
+from raspi.core.models import REQUIREMENT_KINDS, AppRef, EnvFile, Host, Requirement
 
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _UNIT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]*\.service$")
@@ -76,6 +76,33 @@ def check_label(value: str) -> str:
     return _check(_NAME, value, "label (letters, digits, . _ -)")
 
 
+def check_requirement(kind: object, path: object) -> Requirement:
+    if kind not in REQUIREMENT_KINDS:
+        raise ConfigError(
+            f"Invalid requirement kind {kind!r} (use {', '.join(REQUIREMENT_KINDS)})"
+        )
+    text = _check(_PATH, path, "requirement path (absolute)")
+    if ".." in text.split("/"):
+        raise ConfigError(f"A requirement path may not contain '..': {text}")
+    return Requirement(str(kind), text)
+
+
+def parse_requirement_line(line: str) -> Requirement:
+    """`mount /mnt/data` -> Requirement (used by the forms and the CLI)."""
+    kind, _, path = line.strip().partition(" ")
+    return check_requirement(kind.strip(), path.strip())
+
+
+def _requires(app: dict) -> tuple[Requirement, ...]:
+    items = app.get("requires") or []
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        raise ConfigError("requires must be a list of {kind: ..., path: ...} entries")
+    found = tuple(check_requirement(i.get("kind"), i.get("path")) for i in items)
+    if len(set(found)) != len(found):
+        raise ConfigError(f"Duplicate requirement in app {app.get('name')!r}")
+    return found
+
+
 def _env_files(app: dict) -> tuple[EnvFile, ...]:
     """`env_file: /path` (one file) and/or `env_files: [{label, path}, ...]`."""
     files = []
@@ -139,6 +166,7 @@ def _apps(items: object) -> tuple[AppRef, ...]:
             run=check_command(a["run"], "run command") if a.get("run") else None,
             built=check_rev(a["built"]) if a.get("built") else None,
             previous=check_rev(a["previous"]) if a.get("previous") else None,
+            requires=_requires(a),
         )
         for a in items
     )

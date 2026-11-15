@@ -43,6 +43,14 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
         if app.repo:
             key = f'"$HOME/.ssh/raspi_deploy_{app.name}"'
             lines.append(f'echo "key=$([ -f {key} ] && echo yes || echo no)"')
+        for i, req in enumerate(app.requires):
+            p = shlex.quote(req.path)
+            test = {
+                "folder": f"[ -d {p} ]",
+                "file": f"[ -f {p} ]",
+                "mount": f"mountpoint -q {p}",
+            }
+            lines.append(f"{test[req.kind]} && echo req{i}=yes || echo req{i}=no")
         for i, env in enumerate(app.env_files):
             p = shlex.quote(env.path)
             lines.append(f"[ -f {p} ] && echo envfile{i}=yes || echo envfile{i}=no")
@@ -271,6 +279,13 @@ def _apply(app: AppStatus, key: str, value: str) -> None:
         app.restarts = int(value) if value.isdigit() else 0
     elif key == "key":
         app.key_present = value == "yes"
+    elif key.startswith("req") and key[3:].isdigit():
+        index = int(key[3:])
+        flags = list(app.requires_present) + [False] * (
+            index + 1 - len(app.requires_present)
+        )
+        flags[index] = value == "yes"
+        app.requires_present = tuple(flags)
     elif key.startswith("envfile") and key[7:].isdigit():
         index = int(key[7:])
         flags = list(app.env_present) + [False] * (index + 1 - len(app.env_present))

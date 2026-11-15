@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from raspi.core.models import AppRef, AppStatus
+from raspi.core.requires import describe, missing_requirements
 from raspi.core.stage import same_rev
 
 KEY, INSTALL, ENV, UNIT, START = "key", "install", "env", "unit", "start"
@@ -31,6 +32,13 @@ class Step:
     label: str
     state: str  # done | current | waiting
     detail: str = ""
+
+
+def _start_detail(app: AppRef, status: AppStatus) -> str:
+    absent = missing_requirements(app, status)
+    if absent:
+        return "not running; missing: " + ", ".join(describe(r) for r in absent)
+    return "not running"
 
 
 def _key_detail(cloned: bool, verified: bool, status: AppStatus) -> str:
@@ -72,7 +80,7 @@ def _done(
         ),
         START: (
             status.state == "running",
-            "running" if status.state == "running" else "not running",
+            "running" if status.state == "running" else _start_detail(app, status),
         ),
     }
 

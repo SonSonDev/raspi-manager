@@ -20,9 +20,11 @@ from PySide6.QtWidgets import (
 
 from raspi import APP_NAME
 from raspi.core.models import Host, HostStatus
+from raspi.core.requires import missing_lines
 from raspi.gui.adopt_actions import AdoptMixin
 from raspi.gui.chrome import build_chrome
 from raspi.gui.cloudflare_dialog import CloudflareDialog
+from raspi.gui.confirm import confirm_change
 from raspi.gui.deploykey_actions import DeployKeyMixin
 from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import NEXT_COL, FleetModel, Row
@@ -236,6 +238,8 @@ class MainWindow(
             return
         if action != "start" and not self._confirm(row, action):
             return
+        if action == "start" and not self._start_despite_missing(row):
+            return
         key = row.key
         self.model.set_pending(key, VERB[action])
         self._update_buttons()
@@ -245,6 +249,18 @@ class MainWindow(
             lambda: (key, action, run_action(host, app, action, self._transport)),
             self._on_action_done,
             lambda msg, k=key: self._on_action_failed(k, msg),
+        )
+
+    def _start_despite_missing(self, row: Row) -> bool:
+        """A start is direct, unless a declared prerequisite is missing: then ask first."""
+        lines = missing_lines(row.app, row.status)
+        return not lines or confirm_change(
+            self,
+            f"Start {row.app.name} anyway?",
+            [f"Run: sudo systemctl start {row.app.unit}"],
+            lines,
+            "",
+            "Start anyway",
         )
 
     def _confirm(self, row: Row, action: str) -> bool:

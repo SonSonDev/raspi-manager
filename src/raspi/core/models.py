@@ -12,6 +12,17 @@ class EnvFile:
     path: str  # absolute, user-writable path on the Pi
 
 
+REQUIREMENT_KINDS = ("folder", "file", "mount")
+
+
+@dataclass(frozen=True)
+class Requirement:
+    """Something that must already exist on the Pi before the app starts (never created by raspi)."""
+
+    kind: str  # folder | file | mount
+    path: str  # absolute
+
+
 @dataclass(frozen=True)
 class AppRef:
     name: str
@@ -27,6 +38,7 @@ class AppRef:
     previous: str | None = (
         None  # revision built before the last update (rollback target)
     )
+    requires: tuple[Requirement, ...] = ()  # checked read-only, never created
 
 
 @dataclass(frozen=True)
@@ -55,6 +67,7 @@ class AppStatus:
         None  # deploy key file exists (None: not an app with a repo)
     )
     env_present: tuple[bool, ...] = ()  # per declared env file: does it exist on the Pi
+    requires_present: tuple[bool, ...] = ()  # per `requires` entry: satisfied on the Pi
 
     @property
     def state(self) -> str:

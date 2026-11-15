@@ -54,7 +54,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 ## F2 — App inventory and install
 - **Inventory on the Pi** (done): `~/.raspi/apps.yaml` (`version: 1`, then `apps:`) is the source of truth; fields: `name`,
   `unit`, `path`, `env_files` (label + path), `repo` (owner/name), `build`, `run` (one-line commands, ≤ 500 characters,
-  validated, shown in full before anything runs). `built: <rev>` (done: set after a successful build when a build is declared). Planned fields: `previous: <rev>`, `requires:` (WORKFLOW §6). For an app with a `repo`, the status also reads its working copy (`~/apps/<app>` when no `path`), whether its deploy key exists and whether each declared env file exists.
+  validated, shown in full before anything runs). `built: <rev>` (done: set after a successful build when a build is declared). `previous: <rev>` (done: the revision built before the last update) and `requires:` (done: prerequisites, see below). For an app with a `repo`, the status also reads its working copy (`~/apps/<app>` when no `path`), whether its deploy key exists and whether each declared env file exists.
   Read on every refresh; a missing file falls back to the apps in `hosts.yaml`; an invalid file is ignored with the reason
   in the status bar. Every write: applied on the file read just now, atomic (temp + mv, mode 600), `.bak` kept, read back.
 - **Publish** (done): “Publish apps to Pi…” / `host publish NAME` writes the `hosts.yaml` apps to a Pi that has no
@@ -69,12 +69,12 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   (no sudo), and the entry added to the Pi's `apps.yaml` (unit `<app>.service`). An existing git working copy is kept as is;
   a non-git folder is refused. Run again for a known app, it updates the entry (env files kept) and rebuilds: the GUI form
   opens pre-filled as “Update an app”. The run command is required in the GUI.
+- **Prerequisites** (done, fake Pi): `requires:` entries `{kind: folder|file|mount, path: /absolute}` (no `..`, no duplicates), typed one per line in the install form or with `install-app --requires mount:/mnt/data` (repeatable). Checked read-only on every status and reported by name, never created: a missing one shows “Prerequisite missing” in Next step, is listed by the wizard's start step, and makes Start ask “Start anyway?”. They do not stop a start.
 - **Install unit** (done, fake Pi): “Install unit…” / `host install-unit NAME APP`: writes and enables (does not start)
   `/etc/systemd/system/<app>.service` marked `# managed by raspi-manager`: `run` through `/bin/sh -c "exec …"`, login user,
   working copy, `Restart=on-failure`, nvm's Node first in `PATH`, one `EnvironmentFile=` per declared env file. A unit
   without our marker is never overwritten. Needs passwordless sudo; reports a missing Node or env file.
-- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app, `requires`, the “New app”
-  wizard (F7b).
+- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app.
 
 ## F3 — Update and rollback
 Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`).

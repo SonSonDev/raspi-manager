@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from raspi.core.models import AppRef, AppStatus
+from raspi.core.requires import describe, missing_requirements
 
 READY = "✓ Ready"
 
@@ -73,6 +74,12 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
             )
         return Next("Install unit…", "The app has no systemd unit yet")
     if state in ("stopped", "failed"):
+        absent = missing_requirements(app, status)
+        if absent:
+            return Next(
+                "Prerequisite missing",
+                "Before starting: " + ", ".join(describe(r) for r in absent),
+            )
         return Next("Start", "The unit exists and is not running")
     if state == "running":
         return Next(READY, done=True)

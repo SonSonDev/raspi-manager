@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from raspi import APP_NAME
 from raspi.core.deploykey import key_steps
 from raspi.core.models import AppRef, Host
+from raspi.core.requires import missing_lines
 from raspi.core.wizard import (
     ENV,
     GLYPH,
@@ -78,6 +79,7 @@ class NewAppWizard(QDialog):
         self._skipped: set[str] = set()
         self._verified = False  # GitHub accepted the key during this session
         self._steps: list[Step] = []
+        self._status = None  # last status read from the Pi
         self.setWindowTitle(f"New app - {app.name} on {host.name}")
         self.resize(620, 300)
 
@@ -146,6 +148,7 @@ class NewAppWizard(QDialog):
     @Slot(object)
     def _on_status(self, payload) -> None:
         self.host, self.app, status = payload
+        self._status = status
         self._steps = wizard_steps(
             self.app, status, frozenset(self._skipped), self._verified
         )
@@ -353,7 +356,7 @@ class NewAppWizard(QDialog):
             self,
             f"Start {app.name} on {host.name}?",
             [f"Run: sudo systemctl start {app.unit}"],
-            [],
+            missing_lines(app, self._status),
             "The unit was created in the previous step.",
             "Start",
         ):

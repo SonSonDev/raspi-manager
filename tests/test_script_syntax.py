@@ -22,7 +22,7 @@ from raspi.core import (
     unit,
     update,
 )
-from raspi.core.models import AppRef, EnvFile
+from raspi.core.models import AppRef, EnvFile, Requirement
 
 APP = AppRef(
     "notes-app",
@@ -30,6 +30,11 @@ APP = AppRef(
     path="/home/pi/apps/notes-app",
     env_files=(EnvFile("default", "/home/pi/apps/notes-app/.env"),),
     repo="SonSonDev/notes-app",
+    requires=(
+        Requirement("mount", "/mnt/data"),
+        Requirement("file", "/mnt/data/.marker"),
+        Requirement("folder", "/mnt/data/db"),
+    ),
     build="npm ci && npm run build",
     run="npm start",
 )

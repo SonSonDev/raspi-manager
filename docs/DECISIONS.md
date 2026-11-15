@@ -3,6 +3,12 @@ One entry per decision, newest first. A decision is only changed by a new entry 
 Not logged: visual tweaks, tuning values, reverted trials.
 Superseded or reversed entries are kept in `docs/archive/DECISIONS-superseded-2026-11.md`.
 
+## 2026-11-15 — App prerequisites: declared, checked on every status, reported, never created, never blocking
+- Decision: `requires:` in an app's `apps.yaml` entry lists `{kind, path}` with kind `folder`, `file` or `mount` (`mountpoint -q`), absolute path without `..`, no duplicates. The status script tests each one read-only and the result travels in `AppStatus.requires_present`. A missing prerequisite is named in the “Next step” column (“Prerequisite missing”, before Start), in the wizard's start step, and in a “Start anyway?” confirmation of the Start action. It never blocks a start.
+- Why: Notes App refuses to start without its data folder marker so that nothing is written to the SD card when the USB disk is not mounted; the tool should say so before the start rather than after in the logs. Creating the folder would defeat that protection, hence never created. Not blocking: the developer knows better than a path test (a mount may be elsewhere, a marker may be renamed).
+- Alternatives rejected: letting raspi create the folder (writes on the SD card); blocking the start (rigid); an app-specific check script (arbitrary code to run and review).
+- Consequences: one extra read-only line per prerequisite per refresh; a prerequisite that is not satisfied shows only after the next refresh (10 s); “mount” needs `mountpoint` on the Pi (util-linux, present on Raspberry Pi OS).
+
 ## 2026-11-15 — Dependencies bumped to the latest stable (checked on PyPI the same day)
 - Decision: ruff 0.17.1 → 0.17.5, pytest 9.1.1 → 9.2.0, python-multipart 0.0.32 → 0.0.33, typer 0.27.3 → 0.29.1, fastapi 0.143.3 → 0.163.1, one at a time with the full gates after each (`uv lock --upgrade-package`, `uv sync`, ruff, 413 tests, CLI `--help`). Unchanged because already current: uvicorn 0.54.0, pyyaml 6.0.3, httpx 0.28.1, keyring 25.7.0, PySide6-Essentials 6.12.0.
 - Why: the 2026-11-15 checkpoint found them behind; small steps keep any break attributable.

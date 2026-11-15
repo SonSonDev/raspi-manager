@@ -90,9 +90,12 @@ If code and this file disagree, say so and fix one of them in the same change.
    is done only once GitHub accepted the key in this session (or the repo is cloned); a key GitHub refuses shows the public
    key to add; the environment step opens the existing editor (template pre-fill, 6a) or “the app needs no environment
    file” (kept for the session only); the wizard ends by suggesting Cloudflare → Set up route…. The separate menu items stay.
-4. **Prerequisites of an app.** Optional `requires:` list in `apps.yaml` (kinds: folder exists, file exists, mount point
-   present). Checked read-only by the plan of step 7 and reported by name; raspi never creates them (so nothing is written
-   to the SD card by mistake). Notes App's data folder and marker file are the first use.
+4. **Prerequisites of an app** (✅, fake Pi; the check rehearsed read-only on `raspi-v`). Optional `requires:` list in `apps.yaml`,
+   entries `{kind, path}` with kind `folder`, `file` or `mount` (a real mount point), absolute paths. They are read with every
+   status (read-only `[ -d ]`, `[ -f ]`, `mountpoint -q`) and reported by name; raspi never creates them (so nothing is
+   written to the SD card by mistake). A missing one makes the “Next step” column say “Prerequisite missing” (before Start),
+   the wizard's start step lists it, and a start asks “Start anyway?” first. They are typed in the install form (one per line,
+   `mount /mnt/data`) or with `--requires mount:/mnt/data`. Notes App's data folder and marker file are the first use.
 5. **Remove app.** “Remove app…” lists every item (inventory entry, unit, working copy, deploy key and alias, route); the
    developer ticks what goes, and confirms by typing the app name. Data folders (`requires:` paths) are never deleted.
 6a. **Declaring and starting an env file** (✅). “Environment…” scans the working copy (`~/apps/<app>` when no `path`) for
@@ -121,4 +124,5 @@ If code and this file disagree, say so and fix one of them in the same change.
 | 2026-11-15 | raspi-v | transport change (whole-script read) | ✓ `host doctor` and `status` run through it; notes-app shows “– no unit” |
 | 2026-11-15 | raspi-v | “Next step” column (read-only) | notes-app: cloned at 2f62548, key present, not built → “Build (Install app…)”; on `raspi`: example-bot and chat-bot “✓ Ready”, web-game “Start” |
 | 2026-11-15 | raspi-v | wizard steps read for notes-app (read-only) | all five steps ✓: key used by the clone, built, 1 env file on the Pi, unit exists, running |
+| 2026-11-15 | raspi-v | prerequisite checks (read-only rehearsal) | folder, file and the root mount point ✓; a plain folder checked as “mount” ✗ and a missing mount ✗, as expected |
 | 2026-11-15 | raspi-v | 4–9 | notes-app was taken through them by the developer by hand; the wizard itself has not been run on a Pi yet |

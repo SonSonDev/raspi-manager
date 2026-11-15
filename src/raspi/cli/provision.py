@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from raspi.config.loader import ConfigError, parse_manifest
+from raspi.config.loader import ConfigError, parse_manifest, parse_requirement_line
 from raspi.core.deploykey import clone_url, key_steps
 from raspi.core.install import InstallError
 from raspi.core.models import Host
@@ -154,17 +154,29 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
             None, "--run", help="Start command (for the unit)"
         ),
         path: str | None = typer.Option(None, "--path", help="Folder on the Pi"),
+        requires: Annotated[
+            list[str] | None,
+            typer.Option(
+                "--requires",
+                help="Prerequisite checked before start: folder|file|mount:PATH (repeatable)",
+            ),
+        ] = None,
         dry_run: bool = typer.Option(
             False, "--dry-run", help="Show it, change nothing"
         ),
         yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
     ) -> None:
         """Clone APP on the Pi through its deploy key, build it, add it to the inventory."""
-        entry = {"name": app_name, "unit": f"{app_name}.service", "repo": repo}
+        entry: dict = {"name": app_name, "unit": f"{app_name}.service", "repo": repo}
         for key, value in (("build", build), ("run", run), ("path", path)):
             if value:
                 entry[key] = value
         try:
+            if requires:
+                parsed = [
+                    parse_requirement_line(r.replace(":", " ", 1)) for r in requires
+                ]
+                entry["requires"] = [{"kind": r.kind, "path": r.path} for r in parsed]
             declared = parse_manifest({"version": 1, "apps": [entry]})[0]
         except ConfigError as exc:
             raise _fail(str(exc)) from exc

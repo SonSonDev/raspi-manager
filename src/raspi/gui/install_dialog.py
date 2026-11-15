@@ -8,19 +8,35 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QVBoxLayout,
 )
 
-from raspi.config.loader import ConfigError, parse_manifest
+from raspi.config.loader import ConfigError, parse_manifest, parse_requirement_line
 from raspi.core.models import AppRef, Host
 
 
-def app_from_fields(name: str, repo: str, build: str, run: str, path: str) -> AppRef:
-    """Validate the form like the loader does. Raises ConfigError."""
-    entry = {"name": name.strip(), "unit": f"{name.strip()}.service", "repo": repo}
+def app_from_fields(
+    name: str, repo: str, build: str, run: str, path: str, requires: str = ""
+) -> AppRef:
+    """Validate the form like the loader does. Raises ConfigError.
+
+    `requires`: one prerequisite per line, `<folder|file|mount> <absolute path>`.
+    """
+    entry: dict = {
+        "name": name.strip(),
+        "unit": f"{name.strip()}.service",
+        "repo": repo,
+    }
     for key, value in (("build", build), ("run", run), ("path", path)):
         if value.strip():
             entry[key] = value.strip()
+    lines = [ln for ln in requires.splitlines() if ln.strip()]
+    if lines:
+        entry["requires"] = [
+            {"kind": r.kind, "path": r.path}
+            for r in (parse_requirement_line(ln) for ln in lines)
+        ]
     return parse_manifest({"version": 1, "apps": [entry]})[0]
 
 
@@ -43,7 +59,7 @@ class InstallAppDialog(QDialog):
         self.setWindowTitle(
             f"{'Update' if existing else 'New' if wizard else 'Install'} an app - {host.name}"
         )
-        self.resize(560, 330)
+        self.resize(560, 400)
 
         intro = QLabel(
             "Tell it once what the app is; the next window then takes it through the "
@@ -63,6 +79,12 @@ class InstallAppDialog(QDialog):
         )
         self.run_edit = self._line("Run command", "e.g. npm start (required)")
         self.path_edit = self._line("Folder on the Pi", "empty: ~/apps/<name>")
+        self.requires_edit = QPlainTextEdit()
+        self.requires_edit.setAccessibleName("Prerequisites")
+        self.requires_edit.setPlaceholderText(
+            "optional, one per line, e.g.\nmount /mnt/data\nfile /mnt/data/.marker"
+        )
+        self.requires_edit.setFixedHeight(64)
         if existing:
             self.name_edit.setText(existing.name)
             self.name_edit.setReadOnly(True)
@@ -70,6 +92,9 @@ class InstallAppDialog(QDialog):
             self.build_edit.setText(existing.build or "")
             self.run_edit.setText(existing.run or "")
             self.path_edit.setText(existing.path or "")
+            self.requires_edit.setPlainText(
+                "\n".join(f"{r.kind} {r.path}" for r in existing.requires)
+            )
         self.error = QLabel("")
         self.error.setObjectName("banner")
         self.error.setVisible(False)
@@ -80,6 +105,7 @@ class InstallAppDialog(QDialog):
         form.addRow("Build command", self.build_edit)
         form.addRow("Run command", self.run_edit)
         form.addRow("Folder (optional)", self.path_edit)
+        form.addRow("Prerequisites", self.requires_edit)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -110,6 +136,7 @@ class InstallAppDialog(QDialog):
                 self.build_edit.text(),
                 self.run_edit.text(),
                 self.path_edit.text(),
+                self.requires_edit.toPlainText(),
             )
             if not app.run:
                 raise ConfigError(
