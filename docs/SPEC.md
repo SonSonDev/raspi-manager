@@ -74,7 +74,8 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   `/etc/systemd/system/<app>.service` marked `# managed by raspi-manager`: `run` through `/bin/sh -c "exec …"`, login user,
   working copy, `Restart=on-failure`, nvm's Node first in `PATH`, one `EnvironmentFile=` per declared env file. A unit
   without our marker is never overwritten. Needs passwordless sudo; reports a missing Node or env file.
-- Not done: remove an app (“Remove app…”, WORKFLOW §6), edit fields other than through Install app.
+- **Remove app** (done, fake Pi; the script also run for real in a throw-away home): “Remove app…” / `host remove-app`. Six items, each separate: the list entry in `apps.yaml` and the unit (stopped, disabled, file deleted; only if made by raspi-manager) are ticked at first; the working copy (git working copies under the home folder only, and not when they hold a `requires:` path), the deploy key and its ssh alias, the env file(s) on the Pi (under home) and the local env copies on the PC are unticked. Unavailable items are greyed with the reason. The exact script is shown and follows the ticks; the app name must be typed (CLI: prompted, `--yes` skips). Pi first, list entry last. Never touched: `requires:` folders, anything outside home, the Cloudflare route and tunnel.
+- Not done: edit fields other than through Install app.
 
 ## F3 — Update and rollback
 Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`).
@@ -143,7 +144,7 @@ and success states.
 
 ## F7b — Guided “New app” wizard
 Status: `done` with a fake Pi (the step states were read for real, read-only, on `raspi-v`). **App → New app…** (Ctrl+Shift+N): one form (name, repository, build, run, folder; run required), then a window listing five steps with a glyph (✓ done, ▶ current, ○ waiting) and a detail each: deploy key (created and checked with GitHub; a key GitHub refuses shows the public key to add), clone and build, environment (the existing editor, pre-filled from `.env.example`; or “the app needs no environment file”, remembered for the session only), systemd unit, start. Each step asks for confirmation with the exact script. The state is re-read from the Pi before and after every step, so closing the window at any point is safe: **App → Continue setup…** on the selected app reopens it at the first step not done. At the end it points to Cloudflare → Set up route….
-Not done: an “Add a Pi” key-install wizard, pre-flight checks, “Remove app…” (ticked items, typed name, data folders never deleted).
+Not done: an “Add a Pi” key-install wizard, pre-flight checks.
 
 ## Project compatibility checklist (what an app needs to be managed by raspi)
 1. A git repo with a remote (deploy by ref). 2. A declared Node/Python version (`engines`, `.nvmrc`). 3. A build step as a

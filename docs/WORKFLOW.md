@@ -29,6 +29,7 @@ Steps 2–6 and the start are one guided flow, **App → New app…** (✅), whi
 | 6 | Unit installed | “Install unit…” / `host install-unit` | 4, `run` declared, 5 (else warning), sudo | `/etc/systemd/system/<app>.service`, enable | unit file ours/foreign/missing, node bin, env files exist | unit enabled | `systemctl disable` + delete file by hand | ✅ |
 | 7 | Running | Start / Stop / Restart / Logs | 6 | systemd state | state | state `running` and logs clean | Stop | ✅ |
 | 8 | Routed | “Set up route…” / `route add` | 7 (port is read from the listening socket), Cloudflare set up | tunnel + ingress + DNS (Cloudflare), connector unit on the Pi | read-only plan | tunnel healthy, HTTPS answers | “Remove route”, “Delete tunnel…” | ✅ (never run on the real account) |
+| — | Remove | “Remove app…” / `host remove-app` | the app is in the inventory | what is ticked, see §6 point 5 | the plan lists what exists and what is refused | the app disappears from the table | add it again with “New app…” | ✅ |
 | 9 | Update | “Update…” / `host update`, `host rollback` | 3, 4 (a working copy and a `repo`) | detached checkout of one commit, build, restart if it was running; `built` and `previous` recorded | fetch, then old → new revision, incoming commit subjects, dirty / local-only check | `built` equals the new revision; app running | “Update…” → go back / `host rollback` | ✅ (fake Pi; probe rehearsed read-only on `raspi-v`) |
 
 Entry path B, **adopt an existing service** (`Scan apps…` / `host adopt`): the app enters at step 6 (unit exists, not ours,
@@ -96,8 +97,15 @@ If code and this file disagree, say so and fix one of them in the same change.
    written to the SD card by mistake). A missing one makes the “Next step” column say “Prerequisite missing” (before Start),
    the wizard's start step lists it, and a start asks “Start anyway?” first. They are typed in the install form (one per line,
    `mount /mnt/data`) or with `--requires mount:/mnt/data`. Notes App's data folder and marker file are the first use.
-5. **Remove app.** “Remove app…” lists every item (inventory entry, unit, working copy, deploy key and alias, route); the
-   developer ticks what goes, and confirms by typing the app name. Data folders (`requires:` paths) are never deleted.
+5. **Remove app** (✅, fake Pi plus a real run of the script in a throw-away home; the plan rehearsed read-only on `raspi-v`).
+   **App → Remove app…** / `host remove-app NAME APP [--workdir] [--key] [--env] [--local-env] [--keep-inventory] [--keep-unit]`
+   lists six items: the list entry (apps.yaml) and the unit are ticked at first; the working copy, the deploy key and its ssh
+   alias, the env file(s) on the Pi and the local env copies on the PC are offered unticked. An item that cannot be removed is
+   greyed with the reason (a unit not made by raspi-manager, a folder that is not a git working copy, a working copy that holds a
+   `requires:` path, a path outside the home folder, an app declared in hosts.yaml). The exact script is shown and updates
+   with the ticks; **Remove** needs the app name typed and at least one tick. The Pi side runs first, the list entry last: a
+   failure leaves the app listed. Never touched: the `requires:` folders (data), anything outside home, and the Cloudflare
+   route and tunnel (removed from the Cloudflare window).
 6a. **Declaring and starting an env file** (✅). “Environment…” scans the working copy (`~/apps/<app>` when no `path`) for
    `.env*` files **and templates** (`.env.example`, `.sample`, `.template`, `.dist`), read-only. A template with no real
    file beside it proposes creating `<folder>/.env`. When that file does not exist on the Pi and nothing is saved locally,
@@ -124,5 +132,6 @@ If code and this file disagree, say so and fix one of them in the same change.
 | 2026-11-15 | raspi-v | transport change (whole-script read) | ✓ `host doctor` and `status` run through it; notes-app shows “– no unit” |
 | 2026-11-15 | raspi-v | “Next step” column (read-only) | notes-app: cloned at 2f62548, key present, not built → “Build (Install app…)”; on `raspi`: example-bot and chat-bot “✓ Ready”, web-game “Start” |
 | 2026-11-15 | raspi-v | wizard steps read for notes-app (read-only) | all five steps ✓: key used by the clone, built, 1 env file on the Pi, unit exists, running |
+| 2026-11-15 | raspi-v | “Remove app…” plan for notes-app (read-only; nothing removed) | six items listed: list entry and unit ticked, working copy, key, env file and local copies offered; no prerequisites declared |
 | 2026-11-15 | raspi-v | prerequisite checks (read-only rehearsal) | folder, file and the root mount point ✓; a plain folder checked as “mount” ✗ and a missing mount ✗, as expected |
 | 2026-11-15 | raspi-v | 4–9 | notes-app was taken through them by the developer by hand; the wizard itself has not been run on a Pi yet |

@@ -17,6 +17,7 @@ from raspi.core import (
     install,
     provision,
     remote,
+    remove,
     runtime,
     scan,
     unit,
@@ -66,6 +67,10 @@ SCRIPTS = {
     "clone and build": install.build_install_script(APP, "missing"),
     "build existing": install.build_install_script(APP_NO_PATH, "repo"),
     "unit probe": unit.build_probe_script(APP),
+    "remove probe": remove.build_probe_script(APP),
+    "remove everything": remove.build_remove_script(
+        APP, set(remove.ORDER), remove.RemoveFacts(env_present=(True,))
+    ),
     "update probe": update.build_probe_script(APP),
     "update probe ref": update.build_probe_script(APP, ref="v1.2/x"),
     "update probe sha": update.build_probe_script(APP, sha="abc1234"),

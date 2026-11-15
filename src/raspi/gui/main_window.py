@@ -33,6 +33,7 @@ from raspi.gui.install_actions import InstallMixin
 from raspi.gui.newapp_actions import NewAppMixin
 from raspi.gui.provision_actions import ProvisionMixin
 from raspi.gui.publish_actions import PublishMixin
+from raspi.gui.remove_actions import RemoveActionsMixin
 from raspi.gui.route_actions import RouteMixin
 from raspi.gui.setup_panel import SetupPanel
 from raspi.gui.theme import Tokens
@@ -54,6 +55,7 @@ class MainWindow(
     DeployKeyMixin,
     InstallMixin,
     NewAppMixin,
+    RemoveActionsMixin,
     UpdateMixin,
     EnvActionsMixin,
     RouteMixin,
@@ -190,6 +192,7 @@ class MainWindow(
         self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_update.setEnabled(self.can_update())
         self.btn_new.setEnabled(self.can_install_app())
+        self.btn_remove_app.setEnabled(self.can_remove_app())
         self.btn_continue.setEnabled(self.can_continue_setup())
         self.btn_update.setToolTip(self.update_tooltip())
         self.btn_route.setEnabled(self.can_route())

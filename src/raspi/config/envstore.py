@@ -42,3 +42,17 @@ def save_local(
         pass
     tmp.replace(path)
     return path
+
+
+def local_copies(host: str, app: str, labels: list[str]) -> list[Path]:
+    """Existing local copies for the given labels (and the default one)."""
+    wanted = dict.fromkeys([DEFAULT_LABEL, *labels])
+    return [p for p in (env_path(host, app, label) for label in wanted) if p.exists()]
+
+
+def delete_local(host: str, app: str, labels: list[str]) -> int:
+    """Remove the local copies; returns how many files went."""
+    found = local_copies(host, app, labels)
+    for path in found:
+        path.unlink()
+    return len(found)

@@ -122,3 +122,18 @@ def update_app(
         dry_run,
         f"updated {app.name} in ~/.raspi/apps.yaml",
     )
+
+
+def remove_app(
+    host: Host, name: str, transport: Transport, dry_run: bool = False
+) -> DeclareResult:
+    """Take the entry named `name` out of the Pi's apps.yaml (nothing else on the Pi changes)."""
+
+    def change(base: tuple[AppRef, ...]) -> tuple[AppRef, ...]:
+        if all(a.name != name for a in base):
+            raise ConfigError(f"{name} is not in the inventory")
+        return tuple(a for a in base if a.name != name)
+
+    return _rewrite_inventory(
+        host, transport, change, dry_run, f"removed {name} from ~/.raspi/apps.yaml"
+    )
