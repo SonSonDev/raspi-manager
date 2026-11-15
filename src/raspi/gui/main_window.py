@@ -24,6 +24,7 @@ from raspi import APP_NAME
 from raspi.core.models import Host, HostStatus
 from raspi.gui.adopt_actions import AdoptMixin
 from raspi.gui.cloudflare_dialog import CloudflareDialog
+from raspi.gui.deploykey_actions import DeployKeyMixin
 from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import FleetModel, Row
 from raspi.gui.host_actions import HostActionsMixin
@@ -46,6 +47,7 @@ class MainWindow(
     PublishMixin,
     AdoptMixin,
     ProvisionMixin,
+    DeployKeyMixin,
     EnvActionsMixin,
     RouteMixin,
     QMainWindow,
@@ -159,12 +161,14 @@ class MainWindow(
         self.btn_publish = self._button("Publish apps to Pi…", self.publish_apps)
         self.btn_scan = self._button("Scan apps…", self.scan_apps)
         self.btn_check = self._button("Check Pi…", self.check_pi)
+        self.btn_key = self._button("Deploy key…", self.deploy_key)
         self.btn_route = self._button("Set up route…", self.setup_route)
         for b in (
             self.btn_add_host,
             self.btn_edit_host,
             self.btn_remove_host,
             self.btn_check,
+            self.btn_key,
             self.btn_scan,
             self.btn_publish,
         ):
@@ -235,6 +239,7 @@ class MainWindow(
         self.btn_publish.setEnabled(self.can_publish())
         self.btn_scan.setEnabled(self.can_scan())
         self.btn_check.setEnabled(self.can_check_pi())
+        self.btn_key.setEnabled(self.can_deploy_key())
         self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))
         declared = bool(row and row.app and row.app.env_files)

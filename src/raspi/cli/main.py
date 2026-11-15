@@ -7,16 +7,14 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from raspi.cli.provision import register_provision
 from raspi.cli.route import route_app
 from raspi.config.loader import ConfigError, load_hosts
 from raspi.config.writer import add_host, remove_host, update_host
 from raspi.core.models import Host
-from raspi.core.runtime import RuntimeError_
 from raspi.services.actions import LookupError_, find_app, read_logs, run_action
 from raspi.services.adopt import add_apps, candidate_to_app, scan_host
 from raspi.services.inventory import plan_publish, publish, resolve_all
-from raspi.services.provision import doctor, provision
-from raspi.services.runtime import install_node, plan_node
 from raspi.services.status import collect_all
 from raspi.ssh.transport import SshTransport
 
@@ -329,75 +327,7 @@ def host_adopt(
     typer.secho(f"✓ {result.message}", fg="green")
 
 
-@host_app.command("doctor")
-def host_doctor(name: str) -> None:
-    """Check what the Pi needs to run apps (read-only)."""
-    current, _ = _live_host(name)
-    report = doctor(current, SshTransport())
-    if not report.ok:
-        typer.secho(report.message, fg="red", err=True)
-        raise typer.Exit(1)
-    for c in report.checks:
-        glyph = "✓" if c.ok else ("✕" if c.required else "–")
-        typer.echo(f"{glyph} {c.label}: {c.detail}" + ("" if c.ok else f"  → {c.fix}"))
-    if report.steps:
-        typer.echo(f"`raspi host provision {name}` can fix: " + "; ".join(report.steps))
-    if not report.fit:
-        raise typer.Exit(1)
-
-
-@host_app.command("provision")
-def host_provision(
-    name: str,
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, change nothing"),
-    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
-) -> None:
-    """Install what the Pi lacks (git, curl via apt; the ~/apps folder)."""
-    current, _ = _live_host(name)
-    transport = SshTransport()
-    report = doctor(current, transport)
-    if not report.ok:
-        typer.secho(report.message, fg="red", err=True)
-        raise typer.Exit(1)
-    for step in report.steps:
-        typer.echo(f"  - {step}")
-    if report.steps and not dry_run and not yes:
-        typer.confirm(f"Apply these changes on {name}?", abort=True)
-    result = provision(current, transport, dry_run=dry_run)
-    if dry_run and result.script:
-        typer.echo(f"\nScript run on {name}:\n{result.script}")
-    if not result.ok:
-        typer.secho(f"✕ {result.message}", fg="red", err=True)
-        raise typer.Exit(1)
-    typer.secho(f"✓ {result.message}", fg="green")
-
-
-@host_app.command("install-node")
-def host_install_node(
-    name: str,
-    major: Annotated[str, typer.Argument(help="Node major version, e.g. 22")] = "22",
-    dry_run: bool = typer.Option(False, "--dry-run", help="Show it, change nothing"),
-    yes: bool = typer.Option(False, "--yes", help="Skip the confirmation"),
-) -> None:
-    """Install Node.js on the Pi through nvm (pinned installer, checksum verified)."""
-    current, _ = _live_host(name)
-    transport = SshTransport()
-    try:
-        steps, _ = plan_node(current, transport, major)
-    except RuntimeError_ as exc:
-        typer.secho(str(exc), fg="red", err=True)
-        raise typer.Exit(1) from exc
-    for step in steps:
-        typer.echo(f"  - {step}")
-    if not dry_run and not yes:
-        typer.confirm(f"Apply these changes on {name}?", abort=True)
-    ok, message, script = install_node(current, transport, major, dry_run=dry_run)
-    if dry_run and script:
-        typer.echo(f"\nScript run on {name}:\n{script}")
-    if not ok:
-        typer.secho(f"✕ {message}", fg="red", err=True)
-        raise typer.Exit(1)
-    typer.secho(f"✓ {message}", fg="green")
+register_provision(host_app, lambda name: _live_host(name))
 
 
 @app.command()

@@ -116,7 +116,7 @@ def test_cli_doctor_and_provision_dry_run(monkeypatch):
     from raspi.cli import main as cli
 
     monkeypatch.setattr(cli, "_live_host", lambda name: (HOST, HOST))
-    monkeypatch.setattr(cli, "SshTransport", lambda: Pi())
+    monkeypatch.setattr("raspi.cli.provision.SshTransport", lambda: Pi())
     runner = CliRunner()
     doctor_out = runner.invoke(cli.app, ["host", "doctor", "pi"])
     assert doctor_out.exit_code == 1 and "✕ git" in doctor_out.output

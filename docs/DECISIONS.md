@@ -2,6 +2,18 @@
 One entry per decision, newest first. A decision is only changed by a new entry that supersedes it.
 Not logged: visual tweaks, tuning values, reverted trials.
 
+## 2026-11-15 — An app's repo, build and run commands are declared in the Pi's `apps.yaml`
+- Decision: the app entry in `~/.raspi/apps.yaml` gets the optional fields `repo` (owner/name), `build` (commands run after checkout) and `run` (command the generated unit starts), later `port`. Clone and build (F10 steps 5-6) and unit generation (step 8) read them from there. Not built yet: schema, validation, wizard.
+- Why: follows the 2026-11-14 decision that the Pi is the source of truth, so a reinstalled PC finds how each app is installed; no change needed in the projects themselves.
+- Alternatives rejected: a `raspi.yaml` in each repo (every project to edit, and raspi must clone before it knows what to do); typing the commands at each install (nothing to replay on redeploy).
+- Consequences: `parse_manifest`, `render_manifest` and `AppRef` grow these fields; the values are commands, so they are validated and shown in full before anything runs, never built by string concatenation.
+
+## 2026-11-15 — Deploy keys: one read-only ed25519 key and one ssh alias per app, GitHub host keys from its API
+- Decision: each app gets `~/.ssh/raspi_deploy_<app>` (ed25519, no passphrase, comment `raspi-<app>@<pi>`) created on the Pi, and a `Host github-<app>` block in `~/.ssh/config` (`HostName github.com`, `User git`, `IdentitiesOnly yes`, guarded by a marker comment so it is added once). The repo is cloned through that alias (`git@github-<app>:owner/name.git`). GitHub's host keys are put in `known_hosts` only when `github.com` is absent, taken from `https://api.github.com/meta` (`ssh_keys`, fetched by the PC over HTTPS, format-checked). The public key is shown for the developer to add as a read-only deploy key; `git ls-remote` (BatchMode, no prompt) verifies it. Existing keys and settings are never replaced.
+- Why: a deploy key is tied to one repo, so one alias per app lets each repo use only its own key; no passphrase because deploys must run unattended; trusting GitHub's published keys avoids accepting a host key blindly on first use.
+- Alternatives rejected: one shared key (GitHub refuses the same deploy key on two repos); `ssh-keyscan` (trust on first use); a key generated on the PC and copied (private key would travel); adding the key through the GitHub API (needs a token with admin rights on the repo, not wanted).
+- Consequences: the key has no passphrase, so anyone with the Pi's login can read that repo (read-only); removing a key means deleting the two files and the config block by hand; not built: rotating a key.
+
 ## 2026-11-15 — Provisioning starts with `doctor` and a minimal `provision` (apt git/curl + `~/apps`)
 - Decision: installs are triggered from raspi-manager in small slices, first the base of every Pi. `doctor` (read-only) lists the gaps; `provision` installs only `git` and `curl` through apt (a fixed whitelist, never a name from outside) and creates `~/apps`, after a confirmation showing the exact script. Node and uv are reported by `doctor` as optional gaps and not installed yet.
 - Why: apt packages come from the distribution with its own signature checks, so this slice adds no third-party download. Node (nvm vs NodeSource vs the trixie package) and uv (installer script vs release binary) each need a method and a version policy, which is the developer's call.
