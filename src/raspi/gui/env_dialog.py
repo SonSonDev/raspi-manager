@@ -24,6 +24,7 @@ from raspi.core.env import EnvError, check_pair, diff_env
 from raspi.core.models import AppRef, EnvFile, Host
 from raspi.gui.add_env_dialog import AddEnvFileDialog
 from raspi.gui.declare import run_declaration
+from raspi.gui.env_template import EnvTemplateMixin
 from raspi.gui.workers import submit
 from raspi.services.actions import run_action
 from raspi.services.declare import declare_env_file, forget_env_file
@@ -60,7 +61,7 @@ class _ValueDelegate(QStyledItemDelegate):
         self._dialog.mark_dirty()
 
 
-class EnvDialog(QDialog):
+class EnvDialog(EnvTemplateMixin, QDialog):
     def __init__(
         self,
         host: Host,
@@ -340,6 +341,7 @@ class EnvDialog(QDialog):
                 "Warnings on the Pi file: " + "; ".join(remote.parsed.warnings[:5])
             )
         self._update_sync()
+        self._tpl_offer(remote)
 
     def _on_remote_failed(self, message: str) -> None:
         self.sync_label.setText(f"Could not read the Pi: {message}")
@@ -365,8 +367,10 @@ class EnvDialog(QDialog):
                 else f"differs from the Pi ({d.summary()}: added/changed/removed)"
             )
         unsaved = " · unsaved changes" if self._dirty else ""
+        empty = self._tpl_empty_count()
+        blank = f" · {empty} without a value" if empty else ""
         self.sync_label.setText(
-            f"{self.table.rowCount()} variable(s) here — {state}{unsaved}"
+            f"{self.table.rowCount()} variable(s) here — {state}{unsaved}{blank}"
         )
 
     # --- actions -----------------------------------------------------------------------
@@ -442,6 +446,7 @@ class EnvDialog(QDialog):
                 lines.append(f"{label}: {', '.join(names)}")
         if d.empty:
             lines.append("Nothing differs from the Pi.")
+        lines += self._tpl_empty_lines(values)
         lines.append("A backup of the current file is kept next to it (.raspi-bak).")
         if restart:
             lines.append(f"Then restarts {self._app.name}.")

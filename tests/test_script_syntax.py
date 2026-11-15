@@ -44,6 +44,8 @@ SCRIPTS = {
     "manifest read": remote.build_manifest_read_script(),
     "manifest push": remote.build_manifest_push_script("version: 1\napps: []\n"),
     "env detect": remote.build_env_detect_script("/home/pi/app"),
+    "env detect default dir": remote.build_env_detect_script("$HOME/apps/notes-app"),
+    "env template read": remote.build_template_read_script("/home/pi/app/.env"),
     "env push": remote.build_env_push_script("/home/pi/app/.env", "A=1\n"),
     "scan": scan.build_scan_script(),
     "doctor": provision.build_check_script(),

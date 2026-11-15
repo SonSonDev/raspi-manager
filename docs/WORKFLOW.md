@@ -25,7 +25,7 @@ Steps 2–6 are one guided flow, "New app" (⬜ as a single flow; ✅ as separat
 | 2 | Key ready | “Deploy key…” / `host deploy-key` | 1 (git) | `~/.ssh/raspi_deploy_<app>`, `~/.ssh/config` block, `known_hosts` | — | `git ls-remote` via the alias succeeds | delete the 2 files + config block; remove the key on GitHub | ✅ |
 | 3 | Cloned | “Install app…” / `host install-app` | 2, repo declared | `git clone` into `~/apps/<app>` | key present, disk ≥ 500 MB, folder state | folder is a git working copy at a known rev | `rm -rf` the folder | ✅ |
 | 4 | Built | same action (runs `build`) | 3, Node ready, `build` declared (may be empty) | `build` output in the working copy; `built: <rev>` in `apps.yaml` | — | build exit code 0 and `built` equals the working copy revision | `git clean` by hand | ✅ |
-| 5 | Env pushed | “Environment…” | 3 (to find candidates) | env file `chmod 600` | diff local vs Pi, names only | sync line “same as the Pi” | restore `.raspi-bak` | ✅ |
+| 5 | Env pushed | “Environment…” | 3 (to find candidates and the template) | env file `chmod 600` (created if it does not exist) | diff local vs Pi, names only | sync line “same as the Pi” | restore `.raspi-bak` | ✅ |
 | 6 | Unit installed | “Install unit…” / `host install-unit` | 4, `run` declared, 5 (else warning), sudo | `/etc/systemd/system/<app>.service`, enable | unit file ours/foreign/missing, node bin, env files exist | unit enabled | `systemctl disable` + delete file by hand | ✅ |
 | 7 | Running | Start / Stop / Restart / Logs | 6 | systemd state | state | state `running` and logs clean | Stop | ✅ |
 | 8 | Routed | “Set up route…” / `route add` | 7 (port is read from the listening socket), Cloudflare set up | tunnel + ingress + DNS (Cloudflare), connector unit on the Pi | read-only plan | tunnel healthy, HTTPS answers | “Remove route”, “Delete tunnel…” | ✅ (never run on the real account) |
@@ -89,6 +89,12 @@ If code and this file disagree, say so and fix one of them in the same change.
    to the SD card by mistake). Notes App's data folder and marker file are the first use.
 5. **Remove app.** “Remove app…” lists every item (inventory entry, unit, working copy, deploy key and alias, route); the
    developer ticks what goes, and confirms by typing the app name. Data folders (`requires:` paths) are never deleted.
+6a. **Declaring and starting an env file** (✅). “Environment…” scans the working copy (`~/apps/<app>` when no `path`) for
+   `.env*` files **and templates** (`.env.example`, `.sample`, `.template`, `.dist`), read-only. A template with no real
+   file beside it proposes creating `<folder>/.env`. When that file does not exist on the Pi and nothing is saved locally,
+   the editor starts from the template: defaults the project wrote are kept, names that look secret (SECRET, PASSWORD,
+   PASSPHRASE, TOKEN, KEY, PRIVATE) and placeholder values (`change-me`, `<…>`, `your-…`) start empty; the editor and the
+   push confirmation name the variables still without a value. Nothing is invented.
 6. **Environment in the wizard.** Between steps 4 and 6 the wizard looks, read-only, for `.env.example` (and similar
    templates) in the working copy and uses its variable names to pre-fill the Environment editor (values left to fill,
    never invented); the file is then pushed from the local copy, and the unit is created only after that.

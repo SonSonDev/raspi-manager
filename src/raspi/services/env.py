@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from raspi.core.env import ParsedEnv, parse_env, render_env
+from raspi.core.env import ParsedEnv, parse_env, prefill_from_template, render_env
 from raspi.core.models import EnvFile, Host
 from raspi.core.remote import (
+    EnvScan,
     build_env_detect_script,
     build_env_push_script,
     build_env_read_script,
-    parse_env_detect,
+    build_template_read_script,
     parse_env_read,
+    parse_env_scan,
+    parse_template_read,
 )
 from raspi.ssh.transport import Transport
 
@@ -42,12 +45,45 @@ def read_remote(host: Host, env: EnvFile, transport: Transport) -> RemoteEnv:
     return RemoteEnv(True, exists=True, parsed=parse_env(content))
 
 
-def detect_env_files(host: Host, folder: str, transport: Transport) -> list[str] | None:
-    """Candidate env files under the app folder (read-only). None if the folder is missing."""
+def scan_env(host: Host, folder: str, transport: Transport) -> EnvScan | None:
+    """Env files and templates under the app folder (read-only). None if the folder is missing.
+
+    `folder` may be `$HOME/apps/<app>` for an app without a declared path.
+    """
     result = transport.run_script(host, build_env_detect_script(folder))
     if not result.ok:
         raise RuntimeError(result.error)
-    return parse_env_detect(folder, result.stdout)
+    return parse_env_scan(folder, result.stdout)
+
+
+def detect_env_files(host: Host, folder: str, transport: Transport) -> list[str] | None:
+    """Candidate env files under the app folder, templates excluded."""
+    scan = scan_env(host, folder, transport)
+    return None if scan is None else scan.files
+
+
+@dataclass
+class TemplateValues:
+    path: str  # the template that was read, e.g. .../.env.example
+    values: dict[
+        str, str
+    ]  # variable -> value to start from (secret-looking ones empty)
+    todo: list[str]  # names that still need a real value
+
+
+def read_template(
+    host: Host, env_path: str, transport: Transport
+) -> TemplateValues | None:
+    """Read-only: variables of the template next to `env_path`, or None when there is none."""
+    result = transport.run_script(host, build_template_read_script(env_path))
+    if not result.ok:
+        raise RuntimeError(result.error)
+    found = parse_template_read(result.stdout)
+    if found is None:
+        return None
+    path, text = found
+    values, todo = prefill_from_template(text)
+    return TemplateValues(path, values, todo)
 
 
 def push(

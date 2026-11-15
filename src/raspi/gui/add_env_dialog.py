@@ -14,10 +14,12 @@ from PySide6.QtWidgets import (
 )
 
 from raspi.config.loader import ConfigError, check_env_path, check_label
+from raspi.core.install import work_dir
 from raspi.core.models import AppRef, Host
 from raspi.core.naming import suggest_label
+from raspi.core.remote import EnvScan
 from raspi.gui.workers import submit
-from raspi.services.env import detect_env_files
+from raspi.services.env import scan_env
 from raspi.ssh.transport import Transport
 
 
@@ -41,6 +43,10 @@ class AddEnvFileDialog(QDialog):
             taken_paths,
         )
         self.result_value: tuple[str, str] | None = None
+        # an app without a declared path lives in ~/apps/<name> once it is installed
+        self._folder = work_dir(app) if (app.path or app.repo) else None
+        self._real_folder: str | None = None  # absolute folder reported by the Pi
+        self._to_create: dict[str, str] = {}  # path of a file to create -> its template
         self.setWindowTitle(f"Declare an environment file - {app.name}")
         self.resize(640, 220)
 
@@ -63,8 +69,8 @@ class AddEnvFileDialog(QDialog):
         self.label_edit = QLineEdit()
         self.label_edit.setAccessibleName("Label")
         self.hint = QLabel(
-            "Looking for .env files…"
-            if app.path
+            "Looking for .env files and templates…"
+            if app.path or app.repo
             else "Type the full path of the file on the Pi."
         )
         self.hint.setWordWrap(True)
@@ -89,10 +95,10 @@ class AddEnvFileDialog(QDialog):
         layout.addWidget(self.error)
         layout.addWidget(buttons)
 
-        if app.path:
-            folder = app.path
+        if self._folder:
+            folder = self._folder
             submit(
-                lambda: detect_env_files(host, folder, transport),
+                lambda: scan_env(host, folder, transport),
                 self._on_detected,
                 lambda msg: self.hint.setText(
                     f"Could not look on the Pi: {msg}. You can still type a path."
@@ -100,32 +106,50 @@ class AddEnvFileDialog(QDialog):
             )
 
     @Slot(object)
-    def _on_detected(self, paths: list[str] | None) -> None:
-        if paths is None:
+    def _on_detected(self, scan: EnvScan | None) -> None:
+        if scan is None:
             self.hint.setText(
-                f"The folder {self._app.path} does not exist on the Pi. You can still type a path."
+                f"The folder {self._app.path or self._folder} does not exist on the Pi "
+                "(is the app installed?). You can still type a path."
             )
             return
-        fresh = [p for p in paths if p not in self._taken_paths]
+        self._real_folder = scan.folder
+        existing = [p for p in scan.files if p not in self._taken_paths]
+        # a template (.env.example) with no real file beside it: offer to create that file
+        self._to_create = {}
+        for template in scan.templates:
+            target = template.rsplit(".", 1)[0]
+            if target not in scan.files and target not in self._taken_paths:
+                self._to_create[target] = template.rsplit("/", 1)[-1]
+        choices = existing + [p for p in self._to_create if p not in existing]
         self.path_box.blockSignals(True)
         self.path_box.clear()
-        self.path_box.addItems(fresh)
+        self.path_box.addItems(choices)
         self.path_box.blockSignals(False)
-        if fresh:
+        if choices:
             self.hint.setText(
-                f"Found {len(fresh)} candidate(s) in {self._app.path}. Pick one or type another path."
+                f"Found {len(existing)} file(s) and {len(self._to_create)} template(s) in "
+                f"{scan.folder}. Pick one or type another path."
             )
-            self._suggest(fresh[0])
+            self._suggest(choices[0])
         else:
             self.hint.setText(
-                f"No undeclared .env file found in {self._app.path}. Type a path if the app reads another one."
+                f"No undeclared .env file or template found in {scan.folder}. "
+                "Type a path if the app reads another one."
             )
 
     @Slot(str)
     def _suggest(self, path: str) -> None:
+        if path in self._to_create:
+            self.hint.setText(
+                f"{path} does not exist yet: it is created when you push, and the "
+                f"editor starts from {self._to_create[path]}."
+            )
         if not self.label_edit.isModified() or not self.label_edit.text():
             self.label_edit.setText(
-                suggest_label(self._app.path, path, self._taken_labels)
+                suggest_label(
+                    self._real_folder or self._app.path, path, self._taken_labels
+                )
             )
             self.label_edit.setModified(False)
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import base64
 import re
 import shlex
+from dataclasses import dataclass
 
+from raspi.core.env import TEMPLATE_SUFFIXES, template_candidates
 from raspi.core.models import AppRef, AppStatus
 
 SHOW_PROPS = (
@@ -144,30 +146,72 @@ def parse_env_read(output: str) -> str | None:
     return rest if first.strip() == ENV_EXISTS else None
 
 
-_TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".raspi-bak", ".bak")
+_BACKUP_SUFFIXES = (".raspi-bak", ".bak")
+
+
+@dataclass(frozen=True)
+class EnvScan:
+    folder: str  # absolute folder that was scanned
+    files: list[str]  # real env files (not templates, not backups)
+    templates: list[str]  # `.env.example` and friends
 
 
 def build_env_detect_script(folder: str) -> str:
-    """Read-only: list `.env*` files up to two levels below the app folder."""
-    d = shlex.quote(folder)
+    """Read-only: list `.env*` files up to two levels below the app folder.
+
+    `folder` may start with `$HOME/` (an app without a declared path): the answer then carries
+    the absolute folder on its first line (`@@DIR=...`).
+    """
+    d = f'"{folder}"' if folder.startswith("$HOME/") else shlex.quote(folder)
     return (
         f'cd {d} 2>/dev/null || {{ echo "@@NODIR"; exit 0; }}\n'
+        'echo "@@DIR=$PWD"\n'
         "find . -maxdepth 2 \\( -name node_modules -o -name .git -o -name dist \\) -prune "
         "-o -type f -name '.env*' -print 2>/dev/null\n"
     )
 
 
-def parse_env_detect(folder: str, output: str) -> list[str] | None:
-    """Absolute paths of candidate env files; None when the folder does not exist."""
+def parse_env_scan(folder: str, output: str) -> EnvScan | None:
+    """Absolute env files and templates; None when the folder does not exist."""
     if output.strip() == "@@NODIR":
         return None
-    found = []
+    base = folder.rstrip("/")
+    files, templates = [], []
     for raw in output.splitlines():
-        rel = raw.strip()
-        if not rel.startswith("./") or rel.endswith(_TEMPLATE_SUFFIXES):
+        line = raw.strip()
+        if line.startswith("@@DIR="):
+            base = line[6:].rstrip("/")
             continue
-        found.append(folder.rstrip("/") + rel[1:])
-    return sorted(found)
+        if not line.startswith("./") or line.endswith(_BACKUP_SUFFIXES):
+            continue
+        path = base + line[1:]
+        (templates if line.endswith(TEMPLATE_SUFFIXES) else files).append(path)
+    return EnvScan(base, sorted(files), sorted(templates))
+
+
+def parse_env_detect(folder: str, output: str) -> list[str] | None:
+    """Absolute paths of candidate env files (templates excluded); None if no such folder."""
+    scan = parse_env_scan(folder, output)
+    return None if scan is None else scan.files
+
+
+def build_template_read_script(env_path: str) -> str:
+    """Read-only: print the first template that exists next to `env_path`."""
+    lines = []
+    for candidate in template_candidates(env_path):
+        q = shlex.quote(candidate)
+        lines.append(
+            f'if [ -f {q} ]; then echo "@@TEMPLATE {candidate}"; cat {q}; exit 0; fi'
+        )
+    return "\n".join(lines) + '\necho "@@NONE"\n'
+
+
+def parse_template_read(output: str) -> tuple[str, str] | None:
+    """(template path, content), or None when there is no template."""
+    first, _, rest = output.partition("\n")
+    if first.startswith("@@TEMPLATE "):
+        return first[len("@@TEMPLATE ") :].strip(), rest
+    return None
 
 
 def build_env_push_script(path: str, content: str) -> str:

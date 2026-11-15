@@ -121,3 +121,49 @@ def diff_env(old: dict[str, str], new: dict[str, str]) -> EnvDiff:
         removed=sorted(k for k in old if k not in new),
         changed=sorted(k for k in new if k in old and new[k] != old[k]),
     )
+
+
+# --- templates (.env.example) -------------------------------------------------------
+_SECRET_WORDS = (
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "PASSPHRASE",
+    "TOKEN",
+    "KEY",
+    "PRIVATE",
+)
+_PLACEHOLDER = re.compile(
+    r"^(change[-_ ]?me|replace[-_ ]?me|your[-_ ].*|<.*>|x{3,}|\*{3,}|todo|secret|password)$",
+    re.IGNORECASE,
+)
+TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist")
+
+
+def looks_secret(name: str) -> bool:
+    upper = name.upper()
+    return any(word in upper for word in _SECRET_WORDS)
+
+
+def prefill_from_template(text: str) -> tuple[dict[str, str], list[str]]:
+    """Variables of a template file: (values to start from, names that need a real value).
+
+    Names that look secret and placeholder values (`change-me`, `<token>`...) start empty; the other
+    defaults are kept as the project wrote them. Nothing is invented.
+    """
+    values: dict[str, str] = {}
+    for name, value in parse_env(text).values.items():
+        keep = (
+            value and not looks_secret(name) and not _PLACEHOLDER.match(value.strip())
+        )
+        values[name] = value if keep else ""
+    return values, sorted(name for name, value in values.items() if not value)
+
+
+def empty_names(values: dict[str, str]) -> list[str]:
+    return sorted(name for name, value in values.items() if not value)
+
+
+def template_candidates(env_path: str) -> list[str]:
+    """Where a template of `env_path` would be: `<file>.example`, `.sample`, `.template`, `.dist`."""
+    return [env_path + suffix for suffix in TEMPLATE_SUFFIXES]

@@ -101,7 +101,7 @@ restart; refused when the working copy has local changes; the previous revision 
 - Declaring files from the GUI (done): with none declared, “Environment…” lists `.env*` candidates found read-only up to two
   folders below the app (templates and our backups skipped) and writes the declaration to the Pi's `apps.yaml` (or
   `hosts.yaml` when the Pi has none).
-- Planned (WORKFLOW §6): in the “New app” wizard, use `.env.example` from the clone to pre-fill variable names.
+- Done: templates (`.env.example`, `.sample`, `.template`, `.dist`) are found next to the env files, also for an app without a declared path (`~/apps/<app>`); a template with no `.env` beside it proposes creating one, and the editor then starts from it (project defaults kept, secret-looking names and placeholders empty); empty variables are counted in the sync line and named in the push confirmation. Planned: the same pre-fill inside the “New app” wizard.
 - Not done: CLI `raspi env ...`, scan of code for missing `process.env.X`, required-keys check before deploy, per-Pi overrides.
 - Values are secrets: never printed, logged, in tooltips, exceptions or test messages.
 
