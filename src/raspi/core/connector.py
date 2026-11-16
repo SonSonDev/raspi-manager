@@ -131,7 +131,9 @@ class Download:
         return f"{RELEASE_URL}/{self.tag}/{self.asset}"
 
 
-def install_steps(unit: str, download: Download | None, bin_path: str) -> list[str]:
+def install_steps(
+    unit: str, download: Download | None, bin_path: str, replace: bool = False
+) -> list[str]:
     """Human-readable list of what the install changes on the Pi (no secret in it)."""
     steps = []
     if download:
@@ -139,13 +141,12 @@ def install_steps(unit: str, download: Download | None, bin_path: str) -> list[s
             f"Download cloudflared {download.tag} ({download.asset}), check its SHA-256 "
             f"and install it as {DEFAULT_BIN}"
         )
-    steps.append(
-        f"Store the tunnel token in {env_path_for(unit)} (root only, mode 600)"
-    )
+    verb = "Replace the token in" if replace else "Store the tunnel token in"
+    steps.append(f"{verb} {env_path_for(unit)} (root only, mode 600)")
     steps.append(
         f"Create the systemd unit /etc/systemd/system/{unit} (runs {bin_path})"
     )
-    steps.append(f"Enable and start {unit}")
+    steps.append(f"Enable and {'restart' if replace else 'start'} {unit}")
     return steps
 
 
@@ -179,7 +180,9 @@ def build_install_script(
         f"sudo chmod 600 {shlex.quote(env_file)}",
         f"printf %s {unit_b64} | base64 -d | sudo tee /etc/systemd/system/{shlex.quote(unit)} >/dev/null",
         "sudo systemctl daemon-reload",
-        f"sudo systemctl enable --now {shlex.quote(unit)}",
+        f"sudo systemctl enable {shlex.quote(unit)}",
+        # restart, not just start: a unit already running must pick up the new token
+        f"sudo systemctl restart {shlex.quote(unit)}",
         f'echo "installed: {unit}"',
     ]
     return "\n".join(lines) + "\n"

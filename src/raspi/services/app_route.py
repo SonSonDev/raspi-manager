@@ -67,6 +67,7 @@ class AppRoutePlan:
     download: Download | None  # None: cloudflared is already on the Pi
     install: bool  # the connector unit must be created
     pi_steps: list[str] = field(default_factory=list)
+    replace_reason: str = ""  # set when a running connector is replaced, and why
 
     @property
     def nothing_to_do(self) -> bool:
@@ -86,6 +87,32 @@ class AppRoutePlan:
         return render_unit(
             self.cloudflare.tunnel_name, self.unit, self.state.bin_path or DEFAULT_BIN
         )
+
+
+def _stale_reason(
+    client: CloudflareClient, settings: CloudflareSettings, plan: routing.RoutePlan
+) -> str:
+    """Why a connector that systemd reports as running cannot be trusted ('' when it can).
+
+    cloudflared stays "active" while it retries forever with a token whose tunnel was deleted
+    ("Tunnel not found"), so the unit state alone proves nothing: ask Cloudflare.
+    """
+    if plan.create_tunnel:
+        return (
+            "the tunnel is new, so the connector already running here belongs to "
+            "another (deleted) tunnel"
+        )
+    try:
+        found = client.list_tunnels(settings.account_id, plan.tunnel_name)
+    except CloudflareError:
+        return ""  # cannot tell: keep what runs
+    status = found[0].get("status", "unknown") if found else "unknown"
+    if status in ("healthy", "degraded"):
+        return ""
+    return (
+        f"the tunnel is {status}: the connector running here is not connected "
+        "(its token is probably outdated)"
+    )
 
 
 def plan_app_route(
@@ -116,7 +143,8 @@ def plan_app_route(
         raise ConnectorError(f"Cannot inspect {host.name}: {probe.error}")
     state = parse_check(probe.stdout)
     running = state.unit_loaded and state.unit_active == "active"
-    if running:
+    stale = _stale_reason(client, settings, cloudflare) if running else ""
+    if running and not stale:
         return AppRoutePlan(host, app, port, cloudflare, unit, state, None, False)
     if not state.has_sudo:
         raise ConnectorError(
@@ -139,7 +167,8 @@ def plan_app_route(
         state,
         download,
         True,
-        install_steps(unit, download, bin_path),
+        install_steps(unit, download, bin_path, replace=running),
+        stale,
     )
 
 

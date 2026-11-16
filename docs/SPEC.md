@@ -125,6 +125,7 @@ Built and tested against a simulated Cloudflare only (never run on the real acco
 - **Add route** computes a read-only plan first (create tunnel, ingress rule with the catch-all `http_status:404` last,
   proxied CNAME) and asks to confirm. A hostname with a single CNAME can be **repointed** (PATCH, with a warning when the old
   tunnel is healthy); A/AAAA/TXT or several records are never touched; other conflicts are refused, never overwritten.
+- **A running connector is trusted only when its tunnel is connected** (2026-11-16): systemd keeps a `cloudflared` unit “active” while it retries forever with a token whose tunnel was deleted (“Unauthorized: Tunnel not found”). So when the unit runs but the tunnel has to be created, or Cloudflare reports it as anything but healthy/degraded, Set up route… replaces the token and restarts the unit (the confirmation says why); a Cloudflare lookup failure keeps what runs.
 - **Set up route** (done): “Set up route…” / `raspi route add HOSTNAME APP[:PORT] [--host] [--repoint]`: port read from the
   app's listening sockets (editable), tunnel `raspi-manager-<pi>--<app>`, one confirmation listing the Cloudflare changes
   and the exact Pi script (token hidden), then the Pi side only if its unit is not already running: official `cloudflared`

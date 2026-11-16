@@ -134,6 +134,11 @@ class RouteMixin:
         box.setInformativeText(
             "This changes your Cloudflare account and the Pi:\n"
             + "\n".join(f"• {s}" for s in plan.steps)
+            + (
+                f"\n\nWhy the connector on the Pi is replaced: {plan.replace_reason}."
+                if plan.replace_reason
+                else ""
+            )
             + "\n\nThe tunnel token is fetched at the last moment and sent to the Pi "
             "only; it is never shown or saved on this PC."
         )

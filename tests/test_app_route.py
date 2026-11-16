@@ -153,7 +153,7 @@ def test_install_script_is_private_checked_and_hides_the_preview_token():
         "checksum mismatch",
         "sudo chmod 600",
         "umask 077",
-        "systemctl enable --now",
+        "systemctl restart",
         "passwordless sudo",
     ):
         assert needed in real
@@ -251,9 +251,48 @@ def test_plan_reuses_the_cloudflared_already_on_the_pi():
     assert "ExecStart=/usr/bin/cloudflared" in base64.b64decode(encoded).decode()
 
 
-def test_plan_does_nothing_on_the_pi_when_the_connector_already_runs():
-    result = plan(pi=Pi(CHECK_RUNNING))
-    assert not result.install and result.pi_steps == []
+def existing_tunnel(healthy=True):
+    """A Cloudflare that already has this app's tunnel (so it is not created again)."""
+    cf = FakeCloudflare(healthy=healthy)
+    tid = "9" * 32
+    cf.tunnels[tid] = {
+        "id": tid,
+        "name": "raspi-manager-raspi-v--web-game",
+        "config_src": "cloudflare",
+    }
+    return cf
+
+
+def test_plan_does_nothing_on_the_pi_when_the_connector_runs_and_its_tunnel_is_connected():
+    result = plan(existing_tunnel(), Pi(CHECK_RUNNING))
+    assert not result.install and result.pi_steps == [] and result.replace_reason == ""
+
+
+def test_a_running_connector_is_not_trusted_when_the_tunnel_is_new_or_not_connected():
+    """cloudflared stays 'active' while it retries with a token whose tunnel was deleted."""
+    fresh = plan(FakeCloudflare(), Pi(CHECK_RUNNING))  # the tunnel has to be created
+    assert fresh.install and "deleted" in fresh.replace_reason
+    assert any("Replace the token" in s for s in fresh.pi_steps)
+    assert any("restart" in s for s in fresh.pi_steps)
+    down = plan(existing_tunnel(healthy=False), Pi(CHECK_RUNNING))
+    assert down.install and "inactive" in down.replace_reason
+    assert "systemctl restart" in down.preview_script()
+
+
+def test_a_cloudflare_lookup_failure_keeps_what_runs():
+    from types import SimpleNamespace
+
+    class Flaky:
+        def list_tunnels(self, account, name=None):
+            raise CloudflareError("rate limited")
+
+    existing = SimpleNamespace(create_tunnel=False, tunnel_name="raspi-manager-x--y")
+    assert (
+        app_route._stale_reason(Flaky(), SETTINGS, existing) == ""
+    )  # cannot tell: keep
+    assert "deleted" in app_route._stale_reason(
+        Flaky(), SETTINGS, SimpleNamespace(create_tunnel=True, tunnel_name="x")
+    )
 
 
 @pytest.mark.parametrize(
@@ -302,10 +341,18 @@ def test_apply_creates_cloudflare_side_then_installs_and_verifies():
     assert "is healthy" in joined and "answered 200" in joined
 
 
-def test_apply_skips_the_pi_when_the_connector_runs():
-    cf, pi = FakeCloudflare(), Pi(CHECK_RUNNING)
+def test_apply_skips_the_pi_when_the_connector_runs_and_is_connected():
+    cf, pi = existing_tunnel(), Pi(CHECK_RUNNING)
     _, result = run(cf, pi)
     assert result.ok and pi.installs == []
+
+
+def test_apply_replaces_the_token_of_a_running_connector_whose_tunnel_was_recreated():
+    cf, pi = FakeCloudflare(), Pi(CHECK_RUNNING)
+    _, result = run(cf, pi)
+    assert result.ok and len(pi.installs) == 1
+    assert "systemctl restart" in pi.installs[0]
+    assert SECRET not in " ".join(result.messages)
 
 
 def test_a_failed_install_is_reported_and_never_shows_the_token():

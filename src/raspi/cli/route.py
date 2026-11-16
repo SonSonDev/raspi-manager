@@ -94,6 +94,11 @@ def route_add(
     typer.echo(f"{app.name} on {pi.name}, port {plan.port}:")
     for step in plan.steps:
         typer.echo(f"  - {step}")
+    if plan.replace_reason:
+        typer.secho(
+            f"  ! The connector on the Pi is replaced: {plan.replace_reason}.",
+            fg="yellow",
+        )
     if dry_run:
         if plan.install:
             typer.echo(
