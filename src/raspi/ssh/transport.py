@@ -7,6 +7,7 @@ known_hosts and ssh config that already work for the developer are reused as-is.
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -38,10 +39,25 @@ class RunResult:
     error: str = ""
 
 
+@dataclass
+class ByteResult:
+    ok: bool
+    stdout: bytes
+    error: str = ""
+
+
 class Transport(Protocol):
     def run_script(
         self, host: Host, script: str, timeout: float = 20.0
     ) -> RunResult: ...
+
+
+class ByteTransport(Transport, Protocol):
+    """A transport that can also move binary data (a tar stream), relayed through this PC."""
+
+    def run_bytes(
+        self, host: Host, script: str, data: bytes = b"", timeout: float = 600.0
+    ) -> ByteResult: ...
 
 
 def find_ssh() -> str:
@@ -96,6 +112,40 @@ class SshTransport:
                 False, stdout, _explain(proc.stderr.decode(errors="replace"))
             )
         return RunResult(True, stdout)
+
+    def run_bytes(
+        self, host: Host, script: str, data: bytes = b"", timeout: float = 600.0
+    ) -> ByteResult:
+        # stdin carries the data, so the script travels as the remote command instead.
+        cmd = [
+            self._ssh,
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=8",
+            "-o",
+            "StrictHostKeyChecking=yes",
+            f"{host.user}@{host.address}",
+            f"sh -c {shlex.quote(script)}",
+        ]
+        try:
+            proc = subprocess.run(
+                cmd,
+                check=False,
+                input=data,
+                capture_output=True,
+                timeout=timeout,
+                creationflags=_NO_WINDOW,
+            )
+        except subprocess.TimeoutExpired:
+            return ByteResult(False, b"", f"Timed out after {timeout:.0f}s")
+        except OSError as exc:
+            return ByteResult(False, b"", f"Cannot run ssh: {exc}")
+        if proc.returncode != 0:
+            return ByteResult(
+                False, proc.stdout, _explain(proc.stderr.decode(errors="replace"))
+            )
+        return ByteResult(True, proc.stdout)
 
 
 def _explain(stderr: str) -> str:

@@ -16,6 +16,13 @@ from raspi.core.deploykey import (
     clone_url,
     parse_public_key,
 )
+from raspi.core.deploykey_manage import (
+    KeyInfo,
+    build_delete_script,
+    build_list_script,
+    build_rotate_script,
+    parse_list,
+)
 from raspi.core.models import Host
 from raspi.ssh.transport import Transport
 
@@ -88,3 +95,64 @@ def verify_repo(host: Host, transport: Transport, name: str, repo: str) -> KeyRe
             f"({clone_url(name, repo)})."
         )
     return KeyResult(False, f"GitHub refused or is unreachable: {result.error}{hint}")
+
+
+@dataclass
+class KeyListing:
+    ok: bool
+    message: str = ""
+    keys: list[KeyInfo] | None = None
+
+
+def list_keys(host: Host, transport: Transport) -> KeyListing:
+    """Read-only: the raspi deploy keys found in the login user's ~/.ssh."""
+    result = transport.run_script(host, build_list_script())
+    if not result.ok:
+        return KeyListing(False, f"Cannot list the keys on {host.name}: {result.error}")
+    return KeyListing(True, keys=parse_list(result.stdout))
+
+
+def rotate_key(
+    host: Host,
+    transport: Transport,
+    name: str,
+    dry_run: bool = False,
+    lookup: Callable[[], list[str]] = fetch_github_keys,
+) -> KeyResult:
+    """Replace the key of `name` by a new one; the old public key stops working at once."""
+    try:
+        script = build_rotate_script(check_name(name), host.name, lookup())
+    except DeployKeyError as exc:
+        return KeyResult(False, str(exc))
+    if dry_run:
+        return KeyResult(True, "Dry run: nothing was changed.", script=script)
+    result = transport.run_script(host, script)
+    key = parse_public_key(result.stdout) if result.ok else ""
+    if not key:
+        reason = result.error if not result.ok else "no public key returned"
+        return KeyResult(
+            False, f"Cannot rotate the key on {host.name}: {reason}", script=script
+        )
+    return KeyResult(True, f"New deploy key made on {host.name}.", key, script)
+
+
+def delete_key(
+    host: Host, transport: Transport, name: str, dry_run: bool = False
+) -> KeyResult:
+    """Delete the key files and alias block of `name`; nothing else."""
+    try:
+        script = build_delete_script(check_name(name))
+    except DeployKeyError as exc:
+        return KeyResult(False, str(exc))
+    if dry_run:
+        return KeyResult(True, "Dry run: nothing was changed.", script=script)
+    result = transport.run_script(host, script)
+    if not result.ok:
+        return KeyResult(
+            False,
+            f"Cannot delete the key on {host.name}: {result.error}",
+            script=script,
+        )
+    return KeyResult(
+        True, f"Deploy key of {name} deleted on {host.name}.", script=script
+    )

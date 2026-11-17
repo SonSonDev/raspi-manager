@@ -183,6 +183,25 @@ def available_items(
     return items
 
 
+def key_removal_lines(name: str) -> list[str]:
+    """Shell lines deleting one app's deploy key files and its alias block (shared with the key manager)."""
+    alias = f"github-{name}"
+    marker = f"{KEY_MARKER}{name}"
+    return [
+        f'k="{key_path(name)}"',
+        'rm -f -- "$k" "$k.pub"',
+        'c="$HOME/.ssh/config"',
+        (
+            f'if [ -f "$c" ] && grep -qxF {shlex.quote(marker)} "$c"; then '
+            "tmp=$(mktemp); "
+            f"awk -v m={shlex.quote(marker)} -v h={shlex.quote('Host ' + alias)} "
+            "'$0==m { if ((getline nxt) > 0) { if (nxt==h) { for (i=0;i<4;i++) getline; next } "
+            'else { print; print nxt; next } } } { print }\' "$c" > "$tmp" '
+            '&& cat "$tmp" > "$c"; rm -f "$tmp"; fi'
+        ),
+    ]
+
+
 def build_remove_script(app: AppRef, chosen: set[str], facts: RemoveFacts) -> str:
     """The commands on the Pi for the ticked items (inventory and local copies are not on the Pi)."""
     lines = ["set -e"]
@@ -205,21 +224,7 @@ def build_remove_script(app: AppRef, chosen: set[str], facts: RemoveFacts) -> st
             'rm -rf -- "$d"',
         ]
     if KEY in chosen:
-        alias = f"github-{app.name}"
-        marker = f"{KEY_MARKER}{app.name}"
-        lines += [
-            f'k="{key_path(app.name)}"',
-            'rm -f -- "$k" "$k.pub"',
-            'c="$HOME/.ssh/config"',
-            (
-                f'if [ -f "$c" ] && grep -qxF {shlex.quote(marker)} "$c"; then '
-                "tmp=$(mktemp); "
-                f"awk -v m={shlex.quote(marker)} -v h={shlex.quote('Host ' + alias)} "
-                "'$0==m { if ((getline nxt) > 0) { if (nxt==h) { for (i=0;i<4;i++) getline; next } "
-                'else { print; print nxt; next } } } { print }\' "$c" > "$tmp" '
-                '&& cat "$tmp" > "$c"; rm -f "$tmp"; fi'
-            ),
-        ]
+        lines += key_removal_lines(app.name)
     if ENV in chosen:
         for env, present in zip(app.env_files, facts.env_present):
             if present:

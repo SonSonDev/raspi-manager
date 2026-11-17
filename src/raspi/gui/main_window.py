@@ -30,6 +30,7 @@ from raspi.gui.env_actions import EnvActionsMixin
 from raspi.gui.fleet_model import NEXT_COL, FleetModel, Row
 from raspi.gui.host_actions import HostActionsMixin
 from raspi.gui.install_actions import InstallMixin
+from raspi.gui.move_actions import MoveActionsMixin
 from raspi.gui.newapp_actions import NewAppMixin
 from raspi.gui.provision_actions import ProvisionMixin
 from raspi.gui.publish_actions import PublishMixin
@@ -57,6 +58,7 @@ class MainWindow(
     InstallMixin,
     NewAppMixin,
     RemoveActionsMixin,
+    MoveActionsMixin,
     ToolsMixin,
     UpdateMixin,
     EnvActionsMixin,
@@ -188,6 +190,7 @@ class MainWindow(
         self.btn_scan.setEnabled(self.can_scan())
         self.btn_check.setEnabled(self.can_check_pi())
         self.btn_key.setEnabled(self.can_deploy_key())
+        self.btn_keys.setEnabled(self.can_deploy_key())
         self.btn_install.setEnabled(self.can_install_app())
         self.btn_unit.setEnabled(self.can_install_unit())
         self.btn_start.setToolTip(self.start_tooltip(state))
@@ -196,6 +199,7 @@ class MainWindow(
         self.btn_new.setEnabled(self.can_install_app())
         self.btn_tools.setEnabled(self.can_install_tools())
         self.btn_remove_app.setEnabled(self.can_remove_app())
+        self.btn_move.setEnabled(self.can_move_app())
         self.btn_continue.setEnabled(self.can_continue_setup())
         self.btn_update.setToolTip(self.update_tooltip())
         self.btn_route.setEnabled(self.can_route())

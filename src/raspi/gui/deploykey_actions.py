@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox
 from raspi import APP_NAME
 from raspi.core.deploykey import DeployKeyError, check_name, check_repo, key_steps
 from raspi.core.models import Host
+from raspi.gui.deploykeys_dialog import DeployKeysDialog
 from raspi.gui.workers import submit
 from raspi.services.deploykey import KeyResult, ensure_key, verify_repo
 
@@ -21,6 +22,19 @@ class DeployKeyMixin:
         host = self.selected_host()
         status = self.model.host_status(host.name) if host else None
         return bool(status and status.reachable)
+
+    def manage_deploy_keys(self) -> None:
+        selected = self.selected_host()
+        host = self._hosts.get(selected.name) if selected else None
+        if selected is None or host is None:
+            return
+        DeployKeysDialog(
+            host,
+            selected.apps,
+            self._transport,
+            lambda: self._refresh_host(host.name),
+            self,
+        ).exec()
 
     def deploy_key(self) -> None:
         selected = self.selected_host()

@@ -60,11 +60,23 @@ def build_chrome(window) -> None:
         window.remove_app_form,
         tip="Remove the selected app from this Pi: you choose what goes",
     )
+    move = a(
+        "btn_move",
+        "Move to another device…",
+        window.move_app_form,
+        tip="Stop this app, copy its data and env file to another Pi, start it there",
+    )
     key = a(
         "btn_key",
         "Deploy key…",
         window.deploy_key,
         tip="Step 1 of a new app: the read-only GitHub key the Pi clones with",
+    )
+    keys = a(
+        "btn_keys",
+        "Manage deploy keys…",
+        window.manage_deploy_keys,
+        tip="List this Pi's deploy keys: check, copy, rotate or delete them",
     )
     install = a(
         "btn_install",
@@ -108,7 +120,7 @@ def build_chrome(window) -> None:
 
     menus = window.menuBar()
     pi_menu = menus.addMenu("&Pi")
-    pi_menu.addActions([check, tools, scan, publish])
+    pi_menu.addActions([check, tools, scan, keys, publish])
     pi_menu.addSeparator()
     pi_menu.addActions([add, edit])
     pi_menu.addSeparator()
@@ -120,6 +132,8 @@ def build_chrome(window) -> None:
     app_menu.addActions([key, install, env, unit])
     app_menu.addSeparator()
     app_menu.addAction(update)
+    app_menu.addSeparator()
+    app_menu.addAction(move)
     app_menu.addSeparator()
     app_menu.addAction(remove_app)
 

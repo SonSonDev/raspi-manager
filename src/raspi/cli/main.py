@@ -7,6 +7,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from raspi.cli.deploykeys import register_deploykeys
+from raspi.cli.move import register_move
 from raspi.cli.provision import register_provision
 from raspi.cli.remove import register_remove
 from raspi.cli.route import route_app
@@ -333,8 +335,10 @@ def host_adopt(
 
 
 register_provision(host_app, lambda name: _live_host(name))
+register_deploykeys(host_app, lambda name: _live_host(name))
 register_update(host_app, lambda name: _live_host(name))
 register_remove(host_app, lambda name: _live_host(name))
+register_move(host_app, lambda name: _live_host(name))
 register_tools(host_app, lambda name: _live_host(name))
 
 
