@@ -150,7 +150,8 @@ Asked for an app whose collector must not restart on every update while its web 
 1. **Declare** (🟡 the `apps.yaml` format, its validation and round trip are built; the GUI form, `--process` and Edit processes… are ⬜): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
    form has a “Processes” list (name, run, update rule; “Add process”) in place of the single run field, and **App → Edit
    processes…** reopens it pre-filled. CLI: `install-app … --process NAME:COMMAND:RULE` (repeatable; `--run` stays and
-   makes the process `main`). `name`: lowercase letters, digits, `-`; unique; `run` validated like today's.
+   makes the process `main`). `name`: lowercase letters, digits, `-`, unique, at most 8 per app; `run` validated like today's and required; `unit` optional
+   (default `<app>-<name>.service`; an adopted unit keeps its name); the app's own `unit` and `run` are those of the first process.
 2. **Units** (⬜): “Install unit…” / `install-unit` writes one unit per process, `<app>-<name>.service` (a lone `main`
    keeps `<app>.service`), same user, working copy and env files, marked `# managed by raspi-manager`; one confirmation
    shows every file. A process removed from the list gets its unit stopped, disabled and deleted, only if ours.
