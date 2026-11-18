@@ -32,7 +32,7 @@ class InstallPlan:
 
 
 def _unit_fields(app: AppRef) -> tuple:
-    return (app.run, app.path, app.env_files)
+    return (app.run, app.path, app.env_files, app.processes)
 
 
 def _plan_unit_update(

@@ -104,6 +104,9 @@ SCRIPTS = {
     "unit install": unit.build_install_script(
         APP, unit.render_unit(APP, "pi", "/home/pi/apps/notes-app", "/n/bin")
     ),
+    "units install (several)": unit.build_units_script(
+        (("a.service", "[Unit]\n"), ("a-web.service", "[Unit]\n"))
+    ),
     "connector check": connector.build_check_script("raspi-tunnel-x.service"),
     "connector install": connector.build_install_script(
         "raspi-tunnel-x.service", "[Unit]\n", "tok", DOWNLOAD

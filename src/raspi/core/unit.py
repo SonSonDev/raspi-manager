@@ -13,7 +13,8 @@ import shlex
 from dataclasses import dataclass
 
 from raspi.core.install import work_dir
-from raspi.core.models import AppRef, AppStatus
+from raspi.core.models import AppRef, AppStatus, Process
+from raspi.core.processes import all_processes
 
 MARKER = "# managed by raspi-manager"
 UNIT_DIR = "/etc/systemd/system"
@@ -34,14 +35,23 @@ def systemd_quote(command: str) -> str:
     )
 
 
-def render_unit(app: AppRef, user: str, workdir: str, node_bin: str) -> str:
-    if not app.run:
-        raise UnitError(f"{app.name} has no run command declared")
+def render_unit(
+    app: AppRef,
+    user: str,
+    workdir: str,
+    node_bin: str,
+    process: Process | None = None,
+) -> str:
+    """The unit of the app, or of one of its processes (same user, folder and env files)."""
+    run = process.run if process else app.run
+    label = f"{app.name} {process.name}" if process and app.processes else app.name
+    if not run:
+        raise UnitError(f"{label} has no run command declared")
     path = f"{node_bin}:{BASE_PATH}" if node_bin else BASE_PATH
     lines = [
         MARKER,
         "[Unit]",
-        f"Description={app.name} (raspi-manager)",
+        f"Description={label} (raspi-manager)",
         "After=network-online.target",
         "Wants=network-online.target",
         "",
@@ -53,7 +63,7 @@ def render_unit(app: AppRef, user: str, workdir: str, node_bin: str) -> str:
     ]
     lines += [f"EnvironmentFile={f.path}" for f in app.env_files]
     lines += [
-        f'ExecStart=/bin/sh -c "exec {systemd_quote(app.run)}"',
+        f'ExecStart=/bin/sh -c "exec {systemd_quote(run)}"',
         "Restart=on-failure",
         "RestartSec=5",
         "",
@@ -86,19 +96,24 @@ def unit_drift(app: AppRef, status: AppStatus) -> list[str]:
 
 # --- what is on the Pi ----------------------------------------------------------------
 def build_probe_script(app: AppRef) -> str:
-    """Read-only: home folder, nvm's Node, sudo, the unit file (ours or foreign), env files."""
-    unit = shlex.quote(f"{UNIT_DIR}/{app.unit}")
+    """Read-only: home folder, nvm's Node, sudo, the unit files (ours or foreign), env files.
+
+    `unit=` is the first process's unit; the others are `unit1=`, `unit2=`...
+    """
     lines = [
         'echo "home=$HOME"',
         'export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"',
         'n=$(command -v node || true); [ -z "$n" ] || echo "nodebin=$(dirname "$n")"',
         'echo "sudo=$(sudo -n true 2>/dev/null && echo yes || echo no)"',
-        (
-            f"if [ -e {unit} ]; then "
-            f"if grep -qxF {shlex.quote(MARKER)} {unit} 2>/dev/null; then echo unit=ours; "
-            f"else echo unit=foreign; fi; else echo unit=missing; fi"
-        ),
     ]
+    for i, process in enumerate(all_processes(app)):
+        unit = shlex.quote(f"{UNIT_DIR}/{process.unit}")
+        key = "unit" if i == 0 else f"unit{i}"
+        lines.append(
+            f"if [ -e {unit} ]; then "
+            f"if grep -qxF {shlex.quote(MARKER)} {unit} 2>/dev/null; then echo {key}=ours; "
+            f"else echo {key}=foreign; fi; else echo {key}=missing; fi"
+        )
     for i, f in enumerate(app.env_files):
         lines.append(
             f"[ -f {shlex.quote(f.path)} ] && echo envfile{i}=yes || echo envfile{i}=no"
@@ -111,11 +126,12 @@ class UnitFacts:
     home: str = ""
     node_bin: str = ""
     has_sudo: bool = False
-    unit: str = "missing"  # missing | ours | foreign
+    unit: str = "missing"  # missing | ours | foreign (the first process's)
+    units: tuple[str, ...] = ()  # the same for every process, in order
     env_present: tuple[bool, ...] = ()
 
 
-def parse_probe(output: str, env_count: int) -> UnitFacts:
+def parse_probe(output: str, env_count: int, process_count: int = 1) -> UnitFacts:
     values: dict[str, str] = {}
     for raw in output.splitlines():
         key, sep, value = raw.rstrip("\r").partition("=")
@@ -126,24 +142,31 @@ def parse_probe(output: str, env_count: int) -> UnitFacts:
         node_bin=values.get("nodebin", ""),
         has_sudo=values.get("sudo") == "yes",
         unit=values.get("unit", "missing"),
+        units=tuple(
+            values.get("unit" if i == 0 else f"unit{i}", "missing")
+            for i in range(process_count)
+        ),
         env_present=tuple(values.get(f"envfile{i}") == "yes" for i in range(env_count)),
     )
 
 
 def build_install_script(app: AppRef, text: str) -> str:
     """Needs passwordless sudo. Enables the unit, does not start it."""
-    unit = shlex.quote(app.unit)
-    b64 = base64.b64encode(text.encode()).decode("ascii")
-    return (
-        "\n".join(
-            [
-                "set -e",
-                'sudo -n true 2>/dev/null || { echo "passwordless sudo is required" >&2; exit 3; }',
-                f"printf %s {b64} | base64 -d | sudo tee {UNIT_DIR}/{unit} >/dev/null",
-                "sudo systemctl daemon-reload",
-                f"sudo systemctl enable {unit}",
-                f'echo "installed: {app.unit}"',
-            ]
-        )
-        + "\n"
-    )
+    return build_units_script(((app.unit, text),))
+
+
+def build_units_script(units: tuple[tuple[str, str], ...]) -> str:
+    """Write every (unit name, text), reload systemd once, enable each. Starts nothing."""
+    lines = [
+        "set -e",
+        'sudo -n true 2>/dev/null || { echo "passwordless sudo is required" >&2; exit 3; }',
+    ]
+    for name, text in units:
+        b64 = base64.b64encode(text.encode()).decode("ascii")
+        path = f"{UNIT_DIR}/{shlex.quote(name)}"
+        lines.append(f"printf %s {b64} | base64 -d | sudo tee {path} >/dev/null")
+    lines.append("sudo systemctl daemon-reload")
+    for name, _ in units:
+        lines.append(f"sudo systemctl enable {shlex.quote(name)}")
+        lines.append(f'echo "installed: {name}"')
+    return "\n".join(lines) + "\n"

@@ -35,7 +35,7 @@ Tests (`tests/`): one file per feature; services with a fake transport; GUI offs
 ```
 Adopted apps keep their own units; only raspi-created ones follow these names.
 Unit drift (built): the status script also reads our unit's `ExecStart`, `EnvironmentFile`, `WorkingDirectory` (`remote._unit_read_lines`), `core/unit.unit_drift` compares them with the inventory, `core/stage` shows “Unit out of date”; `services/install.plan_install` carries an optional `UnitPlan` (read through `services/unit.plan_unit`), `install_app(with_unit=True)` writes it last; `gui/confirm.confirm_with_option` is the confirmation with a tick box.
-Built so far: `core/models.Process` and `AppRef.processes`, validation in `config/loader` (`check_process`), rendering in `core/manifest`, `core/processes.all_processes` (an app without a list is one process, `main`). Planned (WORKFLOW §6b): everything that acts on them; `processes:` in `apps.yaml` and one `<app>-<name>.service` per process (`core/models`, `manifest`, `unit`,
+Built so far: `core/models.Process` and `AppRef.processes`, validation in `config/loader` (`check_process`), rendering in `core/manifest`, `core/processes.all_processes` (an app without a list is one process, `main`); `core/unit.render_unit(..., process)`, `build_units_script` and a probe with one state per process, used by `services/unit.plan_unit`. Planned (WORKFLOW §6b): everything that acts on them; `processes:` in `apps.yaml` and one `<app>-<name>.service` per process (`core/models`, `manifest`, `unit`,
 `stage`; `services/update`, `unit`, `status`; unit drift compared in `core/unit`); not built yet.
 
 ## Data flows

@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 
 from raspi.core.install import work_dir
 from raspi.core.models import AppRef, Host
+from raspi.core.processes import all_processes
 from raspi.core.unit import (
     UNIT_DIR,
     UnitError,
-    build_install_script,
     build_probe_script,
+    build_units_script,
     parse_probe,
     render_unit,
 )
@@ -20,7 +21,7 @@ from raspi.ssh.transport import Transport
 @dataclass
 class UnitPlan:
     app: AppRef
-    text: str
+    text: str  # every unit file, one after the other when the app has several processes
     script: str
     steps: list[str]
     warnings: list[str] = field(default_factory=list)
@@ -29,23 +30,34 @@ class UnitPlan:
 
 def plan_unit(host: Host, transport: Transport, app: AppRef) -> UnitPlan:
     """Read-only. Raises UnitError when the unit cannot be created as declared."""
-    if not app.run:
-        raise UnitError(f"{app.name} has no run command declared")
+    processes = all_processes(app)
+    for process in processes:
+        if not process.run:
+            raise UnitError(f"{process.name} of {app.name} has no run command declared")
     probe = transport.run_script(host, build_probe_script(app))
     if not probe.ok:
         raise UnitError(f"Cannot inspect {host.name}: {probe.error}")
-    facts = parse_probe(probe.stdout, len(app.env_files))
+    facts = parse_probe(probe.stdout, len(app.env_files), len(processes))
     if not facts.has_sudo:
         raise UnitError(f"{host.name} needs passwordless sudo to install a unit")
-    if facts.unit == "foreign":
-        raise UnitError(
-            f"{UNIT_DIR}/{app.unit} exists and was not made by raspi-manager: "
-            "not overwritten"
-        )
+    for process, state in zip(processes, facts.units, strict=True):
+        if state == "foreign":
+            raise UnitError(
+                f"{UNIT_DIR}/{process.unit} exists and was not made by raspi-manager: "
+                "not overwritten"
+            )
     workdir = work_dir(app).replace("$HOME", facts.home) if facts.home else ""
     if not workdir.startswith("/"):
         raise UnitError(f"Cannot work out the folder of {app.name} on {host.name}")
-    text = render_unit(app, host.user, workdir, facts.node_bin)
+    rendered = tuple(
+        (p.unit, render_unit(app, host.user, workdir, facts.node_bin, p))
+        for p in processes
+    )
+    text = (
+        rendered[0][1]
+        if len(rendered) == 1
+        else "\n".join(f"# ===== {name} =====\n{body}" for name, body in rendered)
+    )
     warnings = []
     if not facts.node_bin:
         warnings.append("No Node found on the Pi: the app may not start")
@@ -54,18 +66,23 @@ def plan_unit(host: Host, transport: Transport, app: AppRef) -> UnitPlan:
     for env, present in zip(app.env_files, facts.env_present, strict=True):
         if not present:
             warnings.append(f"{env.path} does not exist yet: push it before starting")
-    verb = "Replace" if facts.unit == "ours" else "Create"
     steps = [
-        f"{verb} {UNIT_DIR}/{app.unit} (runs `{app.run}` as {host.user} in {workdir})",
-        "Reload systemd and enable the unit (it is not started)",
+        f"{'Replace' if state == 'ours' else 'Create'} {UNIT_DIR}/{p.unit} "
+        f"(runs `{p.run}` as {host.user} in {workdir})"
+        for p, state in zip(processes, facts.units, strict=True)
     ]
+    steps.append(
+        "Reload systemd and enable the unit (it is not started)"
+        if len(processes) == 1
+        else "Reload systemd and enable the units (none is started or restarted)"
+    )
     return UnitPlan(
         app,
         text,
-        build_install_script(app, text),
+        build_units_script(rendered),
         steps,
         warnings,
-        existing=facts.unit == "ours",
+        existing="ours" in facts.units,
     )
 
 
