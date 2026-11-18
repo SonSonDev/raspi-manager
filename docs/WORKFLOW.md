@@ -147,7 +147,7 @@ If code and this file disagree, say so and fix one of them in the same change.
 
 ## 6b. Several processes per app, and the unit kept in step (⬜ planned, decided 2026-11-18)
 Asked for an app whose collector must not restart on every update while its web server must. Nothing here is built yet.
-1. **Declare** (⬜): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
+1. **Declare** (🟡 the `apps.yaml` format, its validation and round trip are built; the GUI form, `--process` and Edit processes… are ⬜): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
    form has a “Processes” list (name, run, update rule; “Add process”) in place of the single run field, and **App → Edit
    processes…** reopens it pre-filled. CLI: `install-app … --process NAME:COMMAND:RULE` (repeatable; `--run` stays and
    makes the process `main`). `name`: lowercase letters, digits, `-`; unique; `run` validated like today's.

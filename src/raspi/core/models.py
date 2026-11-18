@@ -32,6 +32,20 @@ class AppRoute:
     check: str = "/"  # URL path read locally to tell the route is answering
 
 
+ON_UPDATE_RULES = ("restart", "keep", "ask")
+
+
+@dataclass(frozen=True)
+class Process:
+    """One long-running command of an app, with its own systemd unit."""
+
+    name: str  # lowercase letters, digits, "-"
+    unit: str  # `<app>-<name>.service` unless an existing unit was adopted
+    run: str | None = None
+    # what an update does to it: restart (default), keep (never), ask (tick box)
+    on_update: str = "restart"
+
+
 @dataclass(frozen=True)
 class AppRef:
     name: str
@@ -48,6 +62,8 @@ class AppRef:
         None  # revision built before the last update (rollback target)
     )
     requires: tuple[Requirement, ...] = ()  # checked read-only, never created
+    # several processes: `unit` and `run` above are then the first one's (old code keeps working)
+    processes: tuple[Process, ...] = ()
     routes: tuple[
         AppRoute, ...
     ] = ()  # recorded by "Set up route…", checked on every status

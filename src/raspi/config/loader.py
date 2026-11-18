@@ -10,11 +10,13 @@ import yaml
 
 from raspi.core.deploykey import DeployKeyError, check_repo
 from raspi.core.models import (
+    ON_UPDATE_RULES,
     REQUIREMENT_KINDS,
     AppRef,
     AppRoute,
     EnvFile,
     Host,
+    Process,
     Requirement,
 )
 from raspi.core.routes import RouteError, check_hostname
@@ -24,6 +26,8 @@ _UNIT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]*\.service$")
 _PATH = re.compile(r"^/[A-Za-z0-9._/-]+$")
 _ADDR = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.:-]*$")
 _USER = re.compile(r"^[a-z_][a-z0-9_-]*$")
+_PROCESS = re.compile(r"^[a-z][a-z0-9-]{0,30}$")
+MAX_PROCESSES = 8
 
 
 class ConfigError(Exception):
@@ -143,6 +147,38 @@ def _routes(app: dict) -> tuple[AppRoute, ...]:
     return found
 
 
+def check_process(item: object, app_name: str) -> Process:
+    if not isinstance(item, dict):
+        raise ConfigError("processes entries must be {name, run, on_update} entries")
+    name = _check(_PROCESS, item.get("name"), "process name (a-z, 0-9, -)")
+    unit = item.get("unit") or f"{app_name}-{name}.service"
+    rule = item.get("on_update") or "restart"
+    if rule not in ON_UPDATE_RULES:
+        raise ConfigError(
+            f"Invalid on_update {rule!r} (one of {', '.join(ON_UPDATE_RULES)})"
+        )
+    return Process(
+        name,
+        _check(_UNIT, unit, "process unit (must end with .service)"),
+        check_command(item.get("run"), f"run command of process {name}"),
+        rule,
+    )
+
+
+def _processes(app: dict) -> tuple[Process, ...]:
+    items = app.get("processes") or []
+    if not isinstance(items, list):
+        raise ConfigError("processes must be a list of {name, run, on_update} entries")
+    if len(items) > MAX_PROCESSES:
+        raise ConfigError(f"At most {MAX_PROCESSES} processes per app")
+    found = tuple(check_process(i, str(app.get("name"))) for i in items)
+    if len({p.name for p in found}) != len(found):
+        raise ConfigError(f"Duplicate process name in app {app.get('name')!r}")
+    if len({p.unit for p in found}) != len(found):
+        raise ConfigError(f"Duplicate process unit in app {app.get('name')!r}")
+    return found
+
+
 def _env_files(app: dict) -> tuple[EnvFile, ...]:
     """`env_file: /path` (one file) and/or `env_files: [{label, path}, ...]`."""
     files = []
@@ -193,27 +229,33 @@ def check_command(value: object, what: str) -> str:
 def _apps(items: object) -> tuple[AppRef, ...]:
     if not isinstance(items, list) or not all(isinstance(a, dict) for a in items):
         raise ConfigError("'apps' must be a list of {name, unit, ...} entries")
-    apps = tuple(
-        AppRef(
-            name=_check(_NAME, a.get("name"), "app name"),
-            unit=_check(_UNIT, a.get("unit"), "unit (must end with .service)"),
-            path=_check(_PATH, a["path"], "app path") if a.get("path") else None,
-            env_files=_env_files(a),
-            repo=check_repo_field(a["repo"]) if a.get("repo") else None,
-            build=check_command(a["build"], "build command")
-            if a.get("build")
-            else None,
-            run=check_command(a["run"], "run command") if a.get("run") else None,
-            built=check_rev(a["built"]) if a.get("built") else None,
-            previous=check_rev(a["previous"]) if a.get("previous") else None,
-            requires=_requires(a),
-            routes=_routes(a),
-        )
-        for a in items
-    )
+    apps = tuple(_app(a) for a in items)
     if len({a.name for a in apps}) != len(apps):
         raise ConfigError("Duplicate app name in the apps list")
     return apps
+
+
+def _app(a: dict) -> AppRef:
+    processes = _processes(a)
+    first = processes[0] if processes else None
+    return AppRef(
+        name=_check(_NAME, a.get("name"), "app name"),
+        unit=first.unit
+        if first
+        else _check(_UNIT, a.get("unit"), "unit (must end with .service)"),
+        path=_check(_PATH, a["path"], "app path") if a.get("path") else None,
+        env_files=_env_files(a),
+        repo=check_repo_field(a["repo"]) if a.get("repo") else None,
+        build=check_command(a["build"], "build command") if a.get("build") else None,
+        run=first.run
+        if first
+        else (check_command(a["run"], "run command") if a.get("run") else None),
+        built=check_rev(a["built"]) if a.get("built") else None,
+        previous=check_rev(a["previous"]) if a.get("previous") else None,
+        requires=_requires(a),
+        routes=_routes(a),
+        processes=processes,
+    )
 
 
 def parse_manifest(data: object) -> tuple[AppRef, ...]:
