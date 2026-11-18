@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 from raspi import APP_NAME
 from raspi.core.models import Host
+from raspi.gui.confirm import confirm_with_options
 from raspi.gui.update_dialog import UpdateDialog
 from raspi.gui.workers import submit
 from raspi.services.update import UpdatePlan, UpdateResult, apply_update, plan_update
@@ -74,13 +75,7 @@ class UpdateMixin:
             if plan.rollback
             else f"Update {plan.app.name} to {plan.new[:7]} on {host.name}?"
         )
-        if not self._confirm_change(
-            title,
-            plan.steps,
-            plan.warnings,
-            details,
-            "Go back" if plan.rollback else "Update",
-        ):
+        if not self._confirm_update(title, plan, details):
             return
         self.status_label.setText(
             f"Updating {plan.app.name}… (the build can take several minutes)"
@@ -90,6 +85,30 @@ class UpdateMixin:
             self._on_updated,
             self._update_failed,
         )
+
+    def _confirm_update(self, title: str, plan: UpdatePlan, details: str) -> bool:
+        """One tick box per process that will be restarted and whose rule is `ask`."""
+        asked = [p for p in plan.processes if p.ask]
+        button = "Go back" if plan.rollback else "Update"
+        if not asked:
+            return self._confirm_change(
+                title, plan.steps, plan.warnings, details, button
+            )
+        confirmed, ticks = confirm_with_options(
+            self,
+            title,
+            plan.steps,
+            plan.warnings,
+            details,
+            button,
+            [f"Restart {p.unit} after the update" for p in asked],
+        )
+        if not confirmed:
+            self.status_label.setText("Cancelled, nothing was changed.")
+            return False
+        for process, ticked in zip(asked, ticks, strict=True):
+            process.restart = ticked
+        return True
 
     @Slot(object)
     def _on_updated(self, payload: tuple[Host, UpdateResult]) -> None:

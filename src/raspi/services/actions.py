@@ -43,7 +43,17 @@ def run_action(
     transport: Transport,
     dry_run: bool = False,
 ) -> ActionResult:
-    script = build_action_script(app.unit, action)
+    return run_unit_action(host, app.unit, action, transport, dry_run)
+
+
+def run_unit_action(
+    host: Host,
+    unit: str,
+    action: str,
+    transport: Transport,
+    dry_run: bool = False,
+) -> ActionResult:
+    script = build_action_script(unit, action)
     if dry_run:
         return ActionResult(
             True, "Dry run: nothing was executed.", script=script, executed=False

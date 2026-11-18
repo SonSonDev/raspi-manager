@@ -6,15 +6,18 @@ from dataclasses import dataclass, field, replace
 
 from raspi.core.models import AppRef, Host
 from raspi.core.update import (
+    RECORD_STEP,
+    ProcessPlan,
     UpdateError,
     build_probe_script,
     build_update_script,
     check_ref,
     parse_probe,
+    plan_processes,
     rollback_target,
     update_steps,
 )
-from raspi.services.actions import run_action
+from raspi.services.actions import run_unit_action
 from raspi.services.adopt import update_app
 from raspi.ssh.transport import Transport
 
@@ -25,11 +28,25 @@ class UpdatePlan:
     old: str  # full hash now checked out
     new: str  # full hash to check out
     commits: list[str]  # "abc1234 subject" lines of what comes in (names only, no diff)
-    steps: list[str]
+    head_steps: list[str]  # checkout and build
     script: str
-    restart: bool
+    processes: list[ProcessPlan]
     rollback: bool
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def steps(self) -> list[str]:
+        return [*self.head_steps, *(p.step for p in self.processes), RECORD_STEP]
+
+    @property
+    def restart(self) -> bool:
+        return any(p.restart for p in self.processes)
+
+    @restart.setter
+    def restart(self, value: bool) -> None:
+        if not value:  # only ever used to cancel every restart
+            for process in self.processes:
+                process.restart = False
 
     @property
     def nothing_to_do(self) -> bool:
@@ -89,26 +106,17 @@ def plan_update(
             f"{facts.local_only} commit(s) of {app.name} exist only on {host.name} and "
             "would be left behind: push them first"
         )
-    notes = []
-    restart = facts.active == "active" and facts.load != "not-found"
-    if restart and not facts.has_sudo:
-        restart = False
-        notes.append("No passwordless sudo: the app will not be restarted")
-    if facts.load == "not-found":
-        notes.append("The app has no unit yet: nothing to restart")
-    elif facts.active != "active":
-        notes.append("The app is not running: it stays stopped")
-    steps = update_steps(app, facts.head, facts.target, facts.behind, restart, rollback)
+    processes = plan_processes(app, facts)
     return UpdatePlan(
         app,
         facts.head,
         facts.target,
         facts.commits,
-        steps,
+        update_steps(app, facts.head, facts.target, facts.behind, rollback),
         build_update_script(app, facts.target),
-        restart,
+        processes,
         rollback,
-        notes,
+        [p.note for p in processes if p.note],
     )
 
 
@@ -148,11 +156,20 @@ def apply_update(host: Host, transport: Transport, plan: UpdatePlan) -> UpdateRe
             messages + [f"But the new revision was not recorded: {saved.message}"],
         )
     messages.append("Recorded in the Pi's inventory")
-    if plan.restart:
-        restarted = run_action(host, app, "restart", transport)
+    for process in plan.processes:
+        if not process.restart:
+            if process.kept:
+                messages.append(f"{process.unit} was kept running (old code)")
+            continue
+        restarted = run_unit_action(host, process.unit, "restart", transport)
         if not restarted.ok:
             return UpdateResult(
-                False, messages + [f"Restart failed: {restarted.message}"]
+                False,
+                messages + [f"Restart of {process.unit} failed: {restarted.message}"],
             )
-        messages.append(f"Restarted ({restarted.state})")
+        messages.append(
+            f"Restarted ({restarted.state})"
+            if process.single
+            else f"Restarted {process.unit} ({restarted.state})"
+        )
     return UpdateResult(True, messages)

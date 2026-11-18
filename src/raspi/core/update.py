@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from raspi.core.install import quoted_dir, work_dir
 from raspi.core.models import AppRef
+from raspi.core.processes import all_processes
 
 _REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$")
 _SHA = re.compile(r"^[0-9a-f]{7,40}$")
@@ -88,9 +89,23 @@ def build_probe_script(app: AppRef, ref: str = "", sha: str = "") -> str:
                 f'echo "load=$(systemctl show {unit} -p LoadState --value 2>/dev/null)"',
                 f'echo "active=$(systemctl show {unit} -p ActiveState --value 2>/dev/null)"',
             ]
+            + _process_state_lines(app)
         )
         + "\n"
     )
+
+
+def _process_state_lines(app: AppRef) -> list[str]:
+    """Read-only: `load1=`/`active1=`... for every process after the first (which is `load=`)."""
+    lines = []
+    for i, process in enumerate(all_processes(app)):
+        if i:
+            unit = shlex.quote(process.unit)
+            for key, prop in (("load", "LoadState"), ("active", "ActiveState")):
+                lines.append(
+                    f'echo "{key}{i}=$(systemctl show {unit} -p {prop} --value 2>/dev/null)"'
+                )
+    return lines
 
 
 @dataclass(frozen=True)
@@ -106,6 +121,7 @@ class UpdateFacts:
     has_sudo: bool = False
     load: str = ""
     active: str = ""
+    more_states: tuple[tuple[str, str], ...] = ()  # (load, active) of processes 2, 3...
 
 
 def _count(value: str) -> int:
@@ -135,7 +151,17 @@ def parse_probe(output: str) -> UpdateFacts:
         has_sudo=values.get("sudo") == "yes",
         load=values.get("load", ""),
         active=values.get("active", ""),
+        more_states=_more_states(values),
     )
+
+
+def _more_states(values: dict[str, str]) -> tuple[tuple[str, str], ...]:
+    found = []
+    i = 1
+    while f"load{i}" in values or f"active{i}" in values:
+        found.append((values.get(f"load{i}", ""), values.get(f"active{i}", "")))
+        i += 1
+    return tuple(found)
 
 
 def build_update_script(app: AppRef, sha: str) -> str:
@@ -157,16 +183,78 @@ def build_update_script(app: AppRef, sha: str) -> str:
 
 
 def update_steps(
-    app: AppRef, old: str, new: str, behind: int, restart: bool, rollback: bool
+    app: AppRef, old: str, new: str, behind: int, rollback: bool
 ) -> list[str]:
+    """Checkout and build; what happens to each process comes from `process_step`."""
     verb = "Go back to" if rollback else "Check out"
     steps = [f"{verb} {new[:7]} (from {old[:7]}) in {work_dir(app)}"]
     if behind and not rollback:
         steps[0] += f", {behind} new commit(s)"
     if app.build:
         steps.append(f"Run in that folder: {app.build}")
-    steps.append(
-        f"Restart {app.unit}" if restart else "The app is not restarted (see the notes)"
-    )
-    steps.append("Record the new revision in ~/.raspi/apps.yaml")
     return steps
+
+
+RECORD_STEP = "Record the new revision in ~/.raspi/apps.yaml"
+
+
+@dataclass
+class ProcessPlan:
+    """What an update does to one process (its `on_update` rule, and the state it is in)."""
+
+    name: str
+    unit: str
+    rule: str  # restart | keep | ask
+    restart: bool  # for `ask`, the developer's choice (starts true)
+    note: str = ""  # why it is not restarted, when it is not
+    single: bool = False  # the app has no `processes:` list: say “the app”
+    kept: bool = False  # running, and left alone because its rule is `keep`
+
+    @property
+    def ask(self) -> bool:
+        return self.rule == "ask" and self.restart
+
+    @property
+    def step(self) -> str:
+        if self.restart:
+            return f"Restart {self.unit}"
+        if self.single:
+            return "The app is not restarted (see the notes)"
+        return f"{self.unit} is not restarted (see the notes)"
+
+
+def plan_processes(app: AppRef, facts: UpdateFacts) -> list[ProcessPlan]:
+    """Decide, from the live states, which processes an update restarts (pure)."""
+    single = not app.processes
+    states = [(facts.load, facts.active), *facts.more_states]
+    plans = []
+    for process, (load, active) in zip(
+        all_processes(app), states + [("", "")] * len(app.processes), strict=False
+    ):
+        subject = "The app" if single else process.unit
+        inline = "the app" if single else process.unit
+        restart, note, kept = True, "", False
+        if load == "not-found":
+            restart, note = False, f"{subject} has no unit yet: nothing to restart"
+        elif active != "active":
+            restart, note = False, f"{subject} is not running: it stays stopped"
+        elif not facts.has_sudo:
+            restart = False
+            note = f"No passwordless sudo: {inline} will not be restarted"
+        elif process.on_update == "keep":
+            restart, kept = False, True
+            note = (
+                f"{subject} is kept running: it keeps the old code until you restart it"
+            )
+        plans.append(
+            ProcessPlan(
+                process.name,
+                process.unit,
+                process.on_update,
+                restart,
+                note,
+                single,
+                kept,
+            )
+        )
+    return plans

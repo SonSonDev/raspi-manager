@@ -155,7 +155,7 @@ Asked for an app whose collector must not restart on every update while its web 
 2. **Units** (🟡 writing one unit per process is built, fake Pi; removing the unit of a process taken off the list is ⬜): “Install unit…” / `install-unit` writes one unit per process, `<app>-<name>.service` (a lone `main`
    keeps `<app>.service`), same user, working copy and env files, marked `# managed by raspi-manager`; one confirmation
    shows every file. A process removed from the list gets its unit stopped, disabled and deleted, only if ours.
-3. **Update rule** `on_update` (⬜): `restart` (default: restarted when it was running), `keep` (never restarted by an
+3. **Update rule** `on_update` (✅ fake Pi; GUI: one tick box per `ask` process in the Update confirmation, CLI: `--keep NAME` repeatable, `--no-restart` for all): `restart` (default: restarted when it was running), `keep` (never restarted by an
    update or a rollback; it runs the old code until restarted by hand), `ask` (a tick box in the Update confirmation, ticked
    by default). A stopped process stays stopped. The plan lists each process and what happens to it; the build runs once.
 4. **Restart one process** (⬜): Start, Stop, Restart and Logs act on the selected process; “Restart now” on a kept one.

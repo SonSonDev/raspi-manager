@@ -38,6 +38,7 @@ def register_update(host_app: typer.Typer, live_host: LiveHost) -> None:
         dry_run: bool,
         yes: bool,
         no_restart: bool,
+        keep: list[str] | None = None,
     ) -> None:
         _, live = live_host(name)
         app = next((a for a in live.apps if a.name == app_name), None)
@@ -50,6 +51,11 @@ def register_update(host_app: typer.Typer, live_host: LiveHost) -> None:
             raise _fail(str(exc)) from exc
         if no_restart:
             plan.restart = False
+        for name_kept in keep or []:
+            kept = next((p for p in plan.processes if p.name == name_kept), None)
+            if kept is None:
+                raise _fail(f"{app_name} has no process called {name_kept}")
+            kept.restart = False
         if plan.nothing_to_do:
             typer.echo(
                 f"{app_name} is already at {plan.new[:7]} and built: nothing to do."
@@ -83,9 +89,18 @@ def register_update(host_app: typer.Typer, live_host: LiveHost) -> None:
         no_restart: bool = typer.Option(
             False, "--no-restart", help="Do not restart the app"
         ),
+        keep: Annotated[
+            list[str] | None,
+            typer.Option(
+                "--keep", help="Do not restart this process this time (repeatable)"
+            ),
+        ] = None,
     ) -> None:
-        """Check out another revision of APP, rebuild it and restart it if it was running."""
-        run(name, app_name, ref, False, dry_run, yes, no_restart)
+        """Check out another revision of APP, rebuild it and restart what was running.
+
+        A process whose rule is `keep` is never restarted; `ask` ones are restarted
+        unless named with --keep."""
+        run(name, app_name, ref, False, dry_run, yes, no_restart, keep)
 
     @host_app.command("rollback")
     def host_rollback(
@@ -98,6 +113,12 @@ def register_update(host_app: typer.Typer, live_host: LiveHost) -> None:
         no_restart: bool = typer.Option(
             False, "--no-restart", help="Do not restart the app"
         ),
+        keep: Annotated[
+            list[str] | None,
+            typer.Option(
+                "--keep", help="Do not restart this process this time (repeatable)"
+            ),
+        ] = None,
     ) -> None:
         """Return APP to the revision built before its last update (or to the last build)."""
-        run(name, app_name, "", True, dry_run, yes, no_restart)
+        run(name, app_name, "", True, dry_run, yes, no_restart, keep)

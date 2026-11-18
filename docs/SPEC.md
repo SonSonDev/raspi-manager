@@ -102,6 +102,7 @@ Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`)
   the last `built` revision after a failed update; `previous` is cleared.
 - A failed build leaves the working copy on the new commit, restarts nothing, records nothing; the “Next step” column then
   says “Build” and the error message points to the rollback.
+- With `processes:` (WORKFLOW §6b): the plan lists what happens to each process, from its `on_update` rule and its live state: `restart` restarts it when it was running, `keep` never does (it runs the old code until restarted by hand), `ask` adds a tick box (GUI) or is restarted unless named with `--keep NAME` (CLI); a stopped process stays stopped; no passwordless sudo restarts nothing. The build runs once; restarts follow in declared order and stop at the first failure, naming its unit. Same for rollback.
 - Not done: listing available tags/branches in a picker, an “update available” hint in the table, keeping several releases.
 
 ## F4 — Lifecycle and logs
