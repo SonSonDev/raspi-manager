@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from raspi.core.models import AppRef, Host
+from raspi.core.models import AppRef, Host, Process
+from raspi.core.processes import all_processes
 from raspi.core.remote import (
     build_action_script,
     build_logs_script,
@@ -71,6 +72,40 @@ def run_unit_action(
     return ActionResult(
         ok, message or (f"{action} done" if ok else f"{action} failed"), state, script
     )
+
+
+def run_processes(
+    host: Host,
+    app: AppRef,
+    action: str,
+    transport: Transport,
+    processes: list[Process] | None = None,
+) -> ActionResult:
+    """`action` on each process in order (default: all), stopping at the first failure.
+
+    One process gives that process's own result, so a single-unit app reads as before."""
+    units = [
+        p.unit for p in (processes if processes is not None else all_processes(app))
+    ]
+    results = []
+    for unit in units:
+        result = run_unit_action(host, unit, action, transport)
+        if not result.ok:
+            return replace(
+                result,
+                message=result.message
+                if len(units) == 1
+                else f"{unit}: {result.message}",
+            )
+        results.append((unit, result))
+    if len(results) == 1:
+        return results[0][1]
+    state = (
+        "active"
+        if all(r.state == "active" for _, r in results)
+        else results[-1][1].state
+    )
+    return ActionResult(True, "; ".join(f"{u} {r.state}" for u, r in results), state)
 
 
 def read_logs(

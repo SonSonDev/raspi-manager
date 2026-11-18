@@ -34,10 +34,19 @@ class Step:
     detail: str = ""
 
 
+def _all_running(status: AppStatus) -> bool:
+    return status.state == "running" and all(
+        p.state == "running" for p in status.processes
+    )
+
+
 def _start_detail(app: AppRef, status: AppStatus) -> str:
     absent = missing_requirements(app, status)
     if absent:
         return "not running; missing: " + ", ".join(describe(r) for r in absent)
+    idle = [p.name for p in status.processes if p.state != "running"]
+    if status.state == "running" and idle:
+        return "not running: " + ", ".join(idle)
     return "not running"
 
 
@@ -79,8 +88,8 @@ def _done(
             "exists" if status.state != "no-unit" else "not created yet",
         ),
         START: (
-            status.state == "running",
-            "running" if status.state == "running" else _start_detail(app, status),
+            _all_running(status),
+            "running" if _all_running(status) else _start_detail(app, status),
         ),
     }
 

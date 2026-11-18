@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from raspi import APP_NAME
 from raspi.core.deploykey import key_steps
 from raspi.core.models import AppRef, Host
+from raspi.core.processes import all_processes
 from raspi.core.requires import missing_lines
 from raspi.core.wizard import (
     ENV,
@@ -39,7 +40,7 @@ from raspi.gui.confirm import confirm_change
 from raspi.gui.declare import run_declaration
 from raspi.gui.env_dialog import EnvDialog
 from raspi.gui.workers import submit
-from raspi.services.actions import run_action
+from raspi.services.actions import run_processes
 from raspi.services.declare import declare_env_file
 from raspi.services.deploykey import ensure_key, verify_repo
 from raspi.services.install import install_app, plan_install
@@ -355,7 +356,7 @@ class NewAppWizard(QDialog):
         if not confirm_change(
             self,
             f"Start {app.name} on {host.name}?",
-            [f"Run: sudo systemctl start {app.unit}"],
+            [f"Run: sudo systemctl start {p.unit}" for p in all_processes(app)],
             missing_lines(app, self._status),
             "The unit was created in the previous step.",
             "Start",
@@ -364,7 +365,7 @@ class NewAppWizard(QDialog):
             return
         self._busy(True, "Starting…")
         submit(
-            lambda: run_action(host, app, "start", transport),
+            lambda: run_processes(host, app, "start", transport),
             self._changed,
             self._failed,
         )

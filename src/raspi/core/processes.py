@@ -7,6 +7,16 @@ from raspi.core.models import AppRef, Process
 MAIN = "main"
 
 
+def restart_targets(app: AppRef) -> tuple[list[Process], list[Process]]:
+    """(processes to restart, processes left running) when the developer asks for a restart
+    of the app as a whole (e.g. after pushing its environment): `keep` is always left alone."""
+    every = all_processes(app)
+    return (
+        [p for p in every if p.on_update != "keep"],
+        [p for p in every if p.on_update == "keep"],
+    )
+
+
 def format_process_line(app: AppRef, process: Process) -> str:
     """The text a person types for this process (the inverse of `parse_process_line`)."""
     unit = (

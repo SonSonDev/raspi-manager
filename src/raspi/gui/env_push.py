@@ -10,8 +10,9 @@ from PySide6.QtWidgets import (
 from raspi import APP_NAME
 from raspi.config import envstore
 from raspi.core.env import EnvError, check_pair, diff_env
+from raspi.core.processes import restart_targets
 from raspi.gui.workers import submit
-from raspi.services.actions import run_action
+from raspi.services.actions import run_processes
 from raspi.services.env import push
 
 
@@ -94,7 +95,7 @@ class EnvPushMixin:
         lines += self._tpl_empty_lines(values)
         lines.append("A backup of the current file is kept next to it (.raspi-bak).")
         if restart:
-            lines.append(f"Then restarts {self._app.name}.")
+            lines += self._restart_lines()
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle(APP_NAME)
@@ -110,17 +111,34 @@ class EnvPushMixin:
             return
         self._set_busy(True)
         host, app, env, transport = self._host, self._app, self._env, self._transport
+        targets, _ = restart_targets(app)
 
         def job():
             pushed = push(host, env, values, transport)
             restarted = (
-                run_action(host, app, "restart", transport)
+                run_processes(host, app, "restart", transport, targets)
                 if restart and pushed.ok
                 else None
             )
             return pushed, restarted
 
         submit(job, self._on_pushed, self._on_push_failed)
+
+    def _restart_lines(self) -> list[str]:
+        """What “Push and restart” will do to each process (a `keep` one is left running)."""
+        if not self._app.processes:
+            return [f"Then restarts {self._app.name}."]
+        targets, kept = restart_targets(self._app)
+        lines = []
+        if targets:
+            lines.append("Then restarts " + ", ".join(p.unit for p in targets) + ".")
+        if kept:
+            lines.append(
+                "Left running with the old values (restart them yourself when ready): "
+                + ", ".join(p.unit for p in kept)
+                + "."
+            )
+        return lines
 
     @Slot(object)
     def _on_pushed(self, payload) -> None:
