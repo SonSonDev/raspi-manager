@@ -148,7 +148,7 @@ class MainWindow(
         self.logs_dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetClosable)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.logs_dock)
         self.logs_dock.hide()
-        self._logs_key: tuple[str, str] | None = None
+        self._logs_key: tuple[str, ...] | None = None
 
     # --- selection ---------------------------------------------------------------
     def selected(self) -> Row | None:
@@ -158,7 +158,7 @@ class MainWindow(
         row = self.model.rows[rows[0].row()]
         return row if row.app else None
 
-    def select_key(self, key: tuple[str, str]) -> None:
+    def select_key(self, key: tuple[str, ...]) -> None:
         r = self.model.row_for_key(key)
         if r >= 0:
             self.table.selectionModel().select(
@@ -253,8 +253,8 @@ class MainWindow(
         key = row.key
         self.model.set_pending(key, VERB[action])
         self._update_buttons()
-        self.status_label.setText(f"{VERB[action].capitalize()} {row.app.name}…")
-        host, app = row.host, row.app
+        self.status_label.setText(f"{VERB[action].capitalize()} {row.label}…")
+        host, app = row.host, row.target
         submit(
             lambda: (key, action, run_action(host, app, action, self._transport)),
             self._on_action_done,
@@ -266,8 +266,8 @@ class MainWindow(
         lines = missing_lines(row.app, row.status)
         return not lines or confirm_change(
             self,
-            f"Start {row.app.name} anyway?",
-            [f"Run: sudo systemctl start {row.app.unit}"],
+            f"Start {row.label} anyway?",
+            [f"Run: sudo systemctl start {row.target.unit}"],
             lines,
             "",
             "Start anyway",
@@ -278,9 +278,9 @@ class MainWindow(
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle(APP_NAME)
-        box.setText(f"{action.capitalize()} {row.app.name} on {row.host.name}?")
+        box.setText(f"{action.capitalize()} {row.label} on {row.host.name}?")
         box.setInformativeText(
-            f"Runs: sudo systemctl {action} {row.app.unit}\n"
+            f"Runs: sudo systemctl {action} {row.target.unit}\n"
             + (
                 "The app will stay down until started again."
                 if action == "stop"
@@ -296,11 +296,11 @@ class MainWindow(
 
     @Slot(object)
     def _on_action_done(
-        self, payload: tuple[tuple[str, str], str, ActionResult]
+        self, payload: tuple[tuple[str, ...], str, ActionResult]
     ) -> None:
         key, action, result = payload
         self.model.set_pending(key, None)
-        name = key[1]
+        name = " ".join(key[1:])
         if result.ok:
             self.status_label.setText(f"✓ {action} {name}: now {result.state}")
         else:
@@ -313,9 +313,9 @@ class MainWindow(
         self._refresh_host(key[0])
         self._update_buttons()
 
-    def _on_action_failed(self, key: tuple[str, str], message: str) -> None:
+    def _on_action_failed(self, key: tuple[str, ...], message: str) -> None:
         self.model.set_pending(key, None)
-        self.status_label.setText(f"✕ {key[1]}: {message}")
+        self.status_label.setText(f"✕ {' '.join(key[1:])}: {message}")
         QMessageBox.critical(self, APP_NAME, message)
         self._update_buttons()
 
@@ -340,10 +340,10 @@ class MainWindow(
         if not row or not row.app:
             return
         self._logs_key = row.key
-        self.logs_dock.setWindowTitle(f"Logs: {row.app.name} on {row.host.name}")
+        self.logs_dock.setWindowTitle(f"Logs: {row.label} on {row.host.name}")
         self.logs_view.setPlainText("Loading…")
         self.logs_dock.show()
-        host, app = row.host, row.app
+        host, app = row.host, row.target
         submit(
             lambda: (row.key, read_logs(host, app, self._transport, 200)),
             self._on_logs,
@@ -351,7 +351,7 @@ class MainWindow(
         )
 
     @Slot(object)
-    def _on_logs(self, payload: tuple[tuple[str, str], ActionResult]) -> None:
+    def _on_logs(self, payload: tuple[tuple[str, ...], ActionResult]) -> None:
         key, result = payload
         if key != self._logs_key:
             return  # user moved on to another app

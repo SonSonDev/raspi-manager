@@ -90,12 +90,18 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
             lines.append(
                 f'  echo "remote=$(git -C {p} remote get-url origin 2>/dev/null)"'
             )
+            # a checkout rewrites .git/HEAD: a process started before that runs old code
+            lines.append(f'  echo "headtime=$(stat -c %Y {p}/.git/HEAD 2>/dev/null)"')
             lines.append("fi")
         # last: every line after a @@PROC marker belongs to that process
         for process in app.processes:
             lines.append(f"echo {shlex.quote(_PROC_MARK + process.name)}")
             lines.append(f"systemctl show {shlex.quote(process.unit)} {props} 2>&1")
             lines += _unit_read_lines(app, process.unit)
+            when = f"systemctl show {shlex.quote(process.unit)} -p ActiveEnterTimestamp --value"
+            lines.append(
+                f'echo "started=$(date -d "$({when} 2>/dev/null)" +%s 2>/dev/null)"'
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -330,6 +336,10 @@ def _apply(app: AppStatus | ProcessStatus, key: str, value: str) -> None:
         app.unit_dir = value
     elif key == "home":
         app.home = value
+    elif key == "started" and isinstance(app, ProcessStatus):
+        app.started = int(value) if value.isdigit() else 0
+    elif key == "headtime" and isinstance(app, AppStatus):
+        app.head_time = int(value) if value.isdigit() else 0
     elif key.startswith("req") and key[3:].isdigit():
         index = int(key[3:])
         flags = list(app.requires_present) + [False] * (

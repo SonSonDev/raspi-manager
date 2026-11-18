@@ -110,6 +110,7 @@ class ProcessStatus:
     unit_env: tuple[str, ...] = ()
     unit_dir: str = ""
     home: str = ""
+    started: int = 0  # epoch seconds of its last start (0: unknown)
 
     @property
     def state(self) -> str:
@@ -142,6 +143,7 @@ class AppStatus:
     unit_dir: str = ""  # its WorkingDirectory=
     home: str = ""  # login user's home on the Pi (read with the unit, to resolve $HOME)
     processes: tuple[ProcessStatus, ...] = ()  # one per declared process, in order
+    head_time: int = 0  # epoch seconds the working copy's HEAD last moved (0: unknown)
 
     @property
     def state(self) -> str:

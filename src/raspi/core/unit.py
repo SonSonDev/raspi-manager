@@ -89,6 +89,11 @@ def unit_drift(app: AppRef, status: AppStatus) -> list[str]:
     return _drift(app, app.run, status)
 
 
+def process_drift(app: AppRef, process: Process, live: ProcessStatus) -> list[str]:
+    """`unit_drift` for one process (names of what differs)."""
+    return _drift(app, process.run, live)
+
+
 def _drift(
     app: AppRef, run: str | None, status: AppStatus | ProcessStatus
 ) -> list[str]:
