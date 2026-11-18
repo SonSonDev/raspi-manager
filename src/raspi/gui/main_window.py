@@ -182,8 +182,12 @@ class MainWindow(
             if row
             else ""
         )
-        self.btn_restart.setEnabled(state == "running")
-        self.btn_stop.setEnabled(state == "running")
+        # a unit that systemd keeps restarting after failures can be stopped (and restarted)
+        looping = (
+            bool(row) and state == "working" and not self.model.is_pending(row.key)
+        )
+        self.btn_restart.setEnabled(state == "running" or looping)
+        self.btn_stop.setEnabled(state == "running" or looping)
         self.btn_start.setEnabled(state in ("stopped", "failed", "unknown"))
         self.btn_logs.setEnabled(bool(row))
         self.btn_publish.setEnabled(self.can_publish())

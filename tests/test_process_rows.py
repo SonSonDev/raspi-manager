@@ -253,3 +253,21 @@ def test_a_unit_in_a_restart_loop_says_so_instead_of_showing_nothing():
     plain = parse_status(STATUS, (PLAIN,))[0]
     plain.active, plain.restarts = "activating", 4
     assert next_step(PLAIN, plain).label == "Restarting (4 restarts): see Logs"
+
+
+def test_a_crash_looping_process_can_be_stopped_and_a_pending_one_cannot(window):
+    w, _ = window
+    key = ("pi", "vocalog", "server")
+    w.select_key(key)
+    row = w.model.rows[w.model.row_for_key(key)]
+    row.pstatus.active, row.pstatus.sub, row.pstatus.restarts = (
+        "activating",
+        "auto-restart",
+        19,
+    )
+    w._update_buttons()
+    assert w.btn_stop.isEnabled() and w.btn_restart.isEnabled()
+    assert not w.btn_start.isEnabled()
+    w.model.set_pending(key, "stopping")
+    w._update_buttons()
+    assert not w.btn_stop.isEnabled() and not w.btn_restart.isEnabled()

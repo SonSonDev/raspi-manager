@@ -157,6 +157,9 @@ class FleetModel(QAbstractTableModel):
         r = self.rows[row]
         return r.state(self._pending.get(r.key))
 
+    def is_pending(self, key: tuple[str, ...]) -> bool:
+        return key in self._pending
+
     def row_for_key(self, key: tuple[str, ...]) -> int:
         return next((i for i, r in enumerate(self.rows) if r.key == key), -1)
 
