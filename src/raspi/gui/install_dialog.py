@@ -12,25 +12,47 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from raspi.config.loader import ConfigError, parse_manifest, parse_requirement_line
+from raspi.config.loader import (
+    ConfigError,
+    parse_manifest,
+    parse_process_line,
+    parse_requirement_line,
+)
 from raspi.core.models import AppRef, Host
+from raspi.core.processes import format_process_line
 
 
 def app_from_fields(
-    name: str, repo: str, build: str, run: str, path: str, requires: str = ""
+    name: str,
+    repo: str,
+    build: str,
+    run: str,
+    path: str,
+    requires: str = "",
+    processes: str = "",
+    existing_unit: str | None = None,
 ) -> AppRef:
     """Validate the form like the loader does. Raises ConfigError.
 
     `requires`: one prerequisite per line, `<folder|file|mount> <absolute path>`.
+    `processes`: one per line, `name[=unit]:command[:restart|keep|ask]`; they replace `run`.
+    `existing_unit`: the unit an app already has, kept (an app's unit cannot change here).
     """
     entry: dict = {
         "name": name.strip(),
-        "unit": f"{name.strip()}.service",
+        "unit": existing_unit or f"{name.strip()}.service",
         "repo": repo,
     }
     for key, value in (("build", build), ("run", run), ("path", path)):
         if value.strip():
             entry[key] = value.strip()
+    lines = [ln for ln in processes.splitlines() if ln.strip()]
+    if lines:
+        entry.pop("run", None)
+        entry["processes"] = [parse_process_line(ln) for ln in lines]
+        first = entry["processes"][0]
+        if existing_unit and "unit" not in first:
+            first["unit"] = existing_unit  # the first process keeps the app's own unit
     lines = [ln for ln in requires.splitlines() if ln.strip()]
     if lines:
         entry["requires"] = [
@@ -85,6 +107,14 @@ class InstallAppDialog(QDialog):
             "optional, one per line, e.g.\nmount /mnt/data\nfile /mnt/data/.marker"
         )
         self.requires_edit.setFixedHeight(64)
+        self.processes_edit = QPlainTextEdit()
+        self.processes_edit.setAccessibleName("Processes")
+        self.processes_edit.setPlaceholderText(
+            "optional, replaces the run command; one per line, name:command:rule, e.g.\n"
+            "bot:node bot/index.js:keep\nserver:node server/index.js\n"
+            "rule: restart (default), keep (never restarted by an update), ask"
+        )
+        self.processes_edit.setFixedHeight(80)
         if existing:
             self.name_edit.setText(existing.name)
             self.name_edit.setReadOnly(True)
@@ -95,6 +125,9 @@ class InstallAppDialog(QDialog):
             self.requires_edit.setPlainText(
                 "\n".join(f"{r.kind} {r.path}" for r in existing.requires)
             )
+            self.processes_edit.setPlainText(
+                "\n".join(format_process_line(existing, p) for p in existing.processes)
+            )
         self.error = QLabel("")
         self.error.setObjectName("banner")
         self.error.setVisible(False)
@@ -104,6 +137,7 @@ class InstallAppDialog(QDialog):
         form.addRow("Repository", self.repo_edit)
         form.addRow("Build command", self.build_edit)
         form.addRow("Run command", self.run_edit)
+        form.addRow("Processes", self.processes_edit)
         form.addRow("Folder (optional)", self.path_edit)
         form.addRow("Prerequisites", self.requires_edit)
         buttons = QDialogButtonBox(
@@ -137,10 +171,13 @@ class InstallAppDialog(QDialog):
                 self.run_edit.text(),
                 self.path_edit.text(),
                 self.requires_edit.toPlainText(),
+                self.processes_edit.toPlainText(),
+                self._existing.unit if self._existing else None,
             )
             if not app.run:
                 raise ConfigError(
-                    "A run command is required (e.g. npm start): the app's service needs it"
+                    "A run command is required (e.g. npm start), or processes: "
+                    "the app's service needs one"
                 )
             if app.name in self._taken:
                 raise ConfigError(f"{app.name} is already in the inventory")

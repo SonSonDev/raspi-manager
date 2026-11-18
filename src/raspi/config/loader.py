@@ -147,6 +147,28 @@ def _routes(app: dict) -> tuple[AppRoute, ...]:
     return found
 
 
+def parse_process_line(line: str) -> dict:
+    """`name[=unit.service]:command[:restart|keep|ask]` as a `processes:` entry (unchecked)."""
+    head, sep, rest = line.strip().partition(":")
+    if not sep or not rest.strip():
+        raise ConfigError(
+            f"Process {line.strip()!r}: write name:command or name:command:keep"
+        )
+    name, _, unit = head.partition("=")
+    left, colon, last = rest.rpartition(":")
+    run, rule = (
+        (left, last.strip())
+        if colon and last.strip() in ON_UPDATE_RULES
+        else (rest, "")
+    )
+    entry: dict = {"name": name.strip(), "run": run.strip()}
+    if unit.strip():
+        entry["unit"] = unit.strip()
+    if rule:
+        entry["on_update"] = rule
+    return entry
+
+
 def check_process(item: object, app_name: str) -> Process:
     if not isinstance(item, dict):
         raise ConfigError("processes entries must be {name, run, on_update} entries")

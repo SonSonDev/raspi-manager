@@ -147,7 +147,7 @@ If code and this file disagree, say so and fix one of them in the same change.
 
 ## 6b. Several processes per app, and the unit kept in step (⬜ planned, decided 2026-11-18)
 Asked for an app whose collector must not restart on every update while its web server must. Nothing here is built yet.
-1. **Declare** (🟡 the `apps.yaml` format, its validation and round trip are built; the GUI form, `--process` and Edit processes… are ⬜): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
+1. **Declare** (✅ fake Pi; the app is edited through “Install app…”, opened pre-filled, there is no separate “Edit processes…”): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
    form has a “Processes” list (name, run, update rule; “Add process”) in place of the single run field, and **App → Edit
    processes…** reopens it pre-filled. CLI: `install-app … --process NAME:COMMAND:RULE` (repeatable; `--run` stays and
    makes the process `main`). `name`: lowercase letters, digits, `-`, unique, at most 8 per app; `run` validated like today's and required; `unit` optional
@@ -161,8 +161,7 @@ Asked for an app whose collector must not restart on every update while its web 
 4. **Restart one process** (⬜): Start, Stop, Restart and Logs act on the selected process; “Restart now” on a kept one.
 5. **Table** (🟡 each process's live state and unit drift are read and judged, and Next step names the process; one row per process is ⬜): one row per process; a process started before the last build or on another revision than the working
    copy shows “old code” in Next step, with the reason in the tooltip.
-6. **Existing unit** (⬜): a unit already running as `<app>.service` is adopted as the process `main` (or the name given),
-   keeping its unit name; nothing is restarted by the migration.
+6. **Existing unit** (✅ fake Pi): an app that already has a unit keeps it as its first process (the form and `--process` give that process the app's unit unless a `=unit` is written), so nothing is renamed or restarted by the migration; “Also rewrite the unit” then adds the other units. One line per process in the form, `name[=unit]:command[:restart|keep|ask]`, the same text as `--process`; a colon inside the command is fine, only a last segment equal to a rule is read as the rule. Emptying the list goes back to the single run command. Not done: removing the unit of a process taken off the list.
 7. **Unit drift** (✅ fake Pi; the detection's read-only lines also run in a throw-away shell): at each refresh, read-only, the unit a process should have (from `apps.yaml`) is compared with the
    file on the Pi, for units carrying our marker only. A difference shows “Unit out of date” in Next step (the tooltip names
    the field: command, env files, path). “Install app…” that changes `run`, `env_files` or `processes` on an app whose unit

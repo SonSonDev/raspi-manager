@@ -7,7 +7,12 @@ from typing import Annotated
 
 import typer
 
-from raspi.config.loader import ConfigError, parse_manifest, parse_requirement_line
+from raspi.config.loader import (
+    ConfigError,
+    parse_manifest,
+    parse_process_line,
+    parse_requirement_line,
+)
 from raspi.core.deploykey import clone_url, key_steps
 from raspi.core.install import InstallError
 from raspi.core.models import Host
@@ -154,6 +159,14 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
             None, "--run", help="Start command (for the unit)"
         ),
         path: str | None = typer.Option(None, "--path", help="Folder on the Pi"),
+        process: Annotated[
+            list[str] | None,
+            typer.Option(
+                "--process",
+                help="A process: name[=unit]:command[:restart|keep|ask] (repeatable; "
+                "replaces --run; `keep` is never restarted by an update)",
+            ),
+        ] = None,
         requires: Annotated[
             list[str] | None,
             typer.Option(
@@ -177,7 +190,16 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
         for key, value in (("build", build), ("run", run), ("path", path)):
             if value:
                 entry[key] = value
+        _, live = live_host(name)
+        known = next((a for a in live.apps if a.name == app_name), None)
         try:
+            if process:
+                entry.pop("run", None)
+                entry["processes"] = [parse_process_line(p) for p in process]
+                if known and "unit" not in entry["processes"][0]:
+                    entry["processes"][0]["unit"] = known.unit
+            elif known:
+                entry["unit"] = known.unit
             if requires:
                 parsed = [
                     parse_requirement_line(r.replace(":", " ", 1)) for r in requires
@@ -186,7 +208,6 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
             declared = parse_manifest({"version": 1, "apps": [entry]})[0]
         except ConfigError as exc:
             raise _fail(str(exc)) from exc
-        _, live = live_host(name)
         transport = SshTransport()
         try:
             plan = plan_install(live, transport, declared)
