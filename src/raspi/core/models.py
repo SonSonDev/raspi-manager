@@ -77,6 +77,45 @@ class Host:
     apps: tuple[AppRef, ...] = ()
 
 
+def collapse_state(load: str, active: str) -> str:
+    """Collapse systemd states into the UI states (see docs/DESIGN.md)."""
+    if load == "not-found":
+        return "no-unit"
+    if active == "active":
+        return "running"
+    if active == "failed":
+        return "failed"
+    if active in ("activating", "deactivating", "reloading"):
+        return "working"
+    if active == "inactive":
+        return "stopped"
+    return "unknown"
+
+
+@dataclass
+class ProcessStatus:
+    """Live state of one process's unit (what `systemctl show` and the unit file say)."""
+
+    name: str
+    unit: str
+    load: str = ""
+    active: str = "unknown"
+    sub: str = ""
+    enabled: str = ""
+    pid: int = 0
+    since: str = ""
+    restarts: int = 0
+    unit_ours: bool = False
+    unit_exec: str = ""
+    unit_env: tuple[str, ...] = ()
+    unit_dir: str = ""
+    home: str = ""
+
+    @property
+    def state(self) -> str:
+        return collapse_state(self.load, self.active)
+
+
 @dataclass
 class AppStatus:
     name: str
@@ -102,21 +141,11 @@ class AppStatus:
     unit_env: tuple[str, ...] = ()  # its EnvironmentFile= paths, in order
     unit_dir: str = ""  # its WorkingDirectory=
     home: str = ""  # login user's home on the Pi (read with the unit, to resolve $HOME)
+    processes: tuple[ProcessStatus, ...] = ()  # one per declared process, in order
 
     @property
     def state(self) -> str:
-        """Collapse systemd states into the UI states (see docs/DESIGN.md)."""
-        if self.load == "not-found":
-            return "no-unit"
-        if self.active == "active":
-            return "running"
-        if self.active == "failed":
-            return "failed"
-        if self.active in ("activating", "deactivating", "reloading"):
-            return "working"
-        if self.active == "inactive":
-            return "stopped"
-        return "unknown"
+        return collapse_state(self.load, self.active)
 
 
 @dataclass

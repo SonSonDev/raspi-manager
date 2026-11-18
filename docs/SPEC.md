@@ -82,7 +82,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   Pi where the app is already set up at the same revision, then starts it there and leaves the source stopped and disabled,
   its data kept. Refusals, checksums and rollback: WORKFLOW §6 item 7a. Needs `ssh` to both Pis from this PC (data is relayed
   through it, never Pi to Pi). Not done: app-provided check command, route and inventory follow-up.
-- **Several processes per app** (decided 2026-11-18; flow in WORKFLOW §6b; built: the `apps.yaml` format and its checks, and “Install unit…” writing one unit per process (a foreign unit of any process refuses the whole plan; one reload; nothing started or restarted); status, update and the forms do not know `processes:` yet): `processes:` list `{name, run,
+- **Several processes per app** (decided 2026-11-18; flow in WORKFLOW §6b; built: the `apps.yaml` format and its checks, and “Install unit…” writing one unit per process (a foreign unit of any process refuses the whole plan; one reload; nothing started or restarted); status reads each process (`systemctl show` and its unit file) and Next step names the process that has no unit, is not running or has a stale unit; the table rows, update and the forms do not know `processes:` yet): `processes:` list `{name, run,
   on_update}` in `apps.yaml`, one unit `<app>-<name>.service` each; `on_update`: `restart` (default), `keep` (an update or
   rollback never restarts it), `ask` (tick box in the Update confirmation); one table row per process; “old code” when a
   kept process predates the last build; an existing `<app>.service` is adopted as `main`. A single `run` stays valid.

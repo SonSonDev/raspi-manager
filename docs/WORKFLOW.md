@@ -159,7 +159,7 @@ Asked for an app whose collector must not restart on every update while its web 
    update or a rollback; it runs the old code until restarted by hand), `ask` (a tick box in the Update confirmation, ticked
    by default). A stopped process stays stopped. The plan lists each process and what happens to it; the build runs once.
 4. **Restart one process** (⬜): Start, Stop, Restart and Logs act on the selected process; “Restart now” on a kept one.
-5. **Table** (⬜): one row per process; a process started before the last build or on another revision than the working
+5. **Table** (🟡 each process's live state and unit drift are read and judged, and Next step names the process; one row per process is ⬜): one row per process; a process started before the last build or on another revision than the working
    copy shows “old code” in Next step, with the reason in the tooltip.
 6. **Existing unit** (⬜): a unit already running as `<app>.service` is adopted as the process `main` (or the name given),
    keeping its unit name; nothing is restarted by the migration.

@@ -13,7 +13,7 @@ import shlex
 from dataclasses import dataclass
 
 from raspi.core.install import work_dir
-from raspi.core.models import AppRef, AppStatus, Process
+from raspi.core.models import AppRef, AppStatus, Process, ProcessStatus
 from raspi.core.processes import all_processes
 
 MARKER = "# managed by raspi-manager"
@@ -80,10 +80,22 @@ def unit_drift(app: AppRef, status: AppStatus) -> list[str]:
     for an app with a `run` command. Node's folder is left out: it changes with nvm, not with the
     inventory.
     """
-    if not status.unit_ours or not app.run:
+    if app.processes:
+        found = []
+        for process, live in zip(app.processes, status.processes, strict=False):
+            suffix = f" ({process.name})" if len(app.processes) > 1 else ""
+            found += [f"{d}{suffix}" for d in _drift(app, process.run, live)]
+        return found
+    return _drift(app, app.run, status)
+
+
+def _drift(
+    app: AppRef, run: str | None, status: AppStatus | ProcessStatus
+) -> list[str]:
+    if not status.unit_ours or not run:
         return []
     drift = []
-    if status.unit_exec != f'/bin/sh -c "exec {systemd_quote(app.run)}"':
+    if status.unit_exec != f'/bin/sh -c "exec {systemd_quote(run)}"':
         drift.append("run command")
     if status.unit_env != tuple(f.path for f in app.env_files):
         drift.append("environment files")

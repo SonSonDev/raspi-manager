@@ -75,6 +75,9 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
                 "app needs none)",
             )
         return Next("Install unit…", "The app has no systemd unit yet")
+    unitless = [p.name for p in status.processes if p.state == "no-unit"]
+    if unitless:
+        return Next("Install unit…", "No systemd unit yet for: " + ", ".join(unitless))
     drift = unit_drift(app, status)
     if drift:
         return Next(
@@ -83,6 +86,9 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
             + ", ".join(drift)
             + ". Install unit… rewrites it; the app is not restarted.",
         )
+    idle = [p.name for p in status.processes if p.state in ("stopped", "failed")]
+    if state == "running" and idle:
+        return Next("Start", "Not running: " + ", ".join(idle))
     if state in ("stopped", "failed"):
         absent = missing_requirements(app, status)
         if absent:

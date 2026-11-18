@@ -8,7 +8,7 @@ import shlex
 from dataclasses import dataclass
 
 from raspi.core.env import TEMPLATE_SUFFIXES, template_candidates
-from raspi.core.models import AppRef, AppStatus
+from raspi.core.models import AppRef, AppStatus, ProcessStatus
 
 SHOW_PROPS = (
     "LoadState",
@@ -20,6 +20,7 @@ SHOW_PROPS = (
     "NRestarts",
 )
 _MARK = "@@APP "
+_PROC_MARK = "@@PROC "
 _CREDENTIALS = re.compile(r"(?<=//)[^/@\s]+@")
 
 
@@ -32,9 +33,9 @@ def _workdir(app: AppRef) -> str | None:
     return None
 
 
-def _unit_read_lines(app: AppRef) -> list[str]:
+def _unit_read_lines(app: AppRef, unit_name: str | None = None) -> list[str]:
     """Read-only: the fields of our own unit file that the inventory decides (unit drift)."""
-    unit = shlex.quote(f"/etc/systemd/system/{app.unit}")
+    unit = shlex.quote(f"/etc/systemd/system/{unit_name or app.unit}")
     marker = shlex.quote("# managed by raspi-manager")
     return [
         f"if grep -qxF {marker} {unit} 2>/dev/null; then",
@@ -90,6 +91,11 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
                 f'  echo "remote=$(git -C {p} remote get-url origin 2>/dev/null)"'
             )
             lines.append("fi")
+        # last: every line after a @@PROC marker belongs to that process
+        for process in app.processes:
+            lines.append(f"echo {shlex.quote(_PROC_MARK + process.name)}")
+            lines.append(f"systemctl show {shlex.quote(process.unit)} {props} 2>&1")
+            lines += _unit_read_lines(app, process.unit)
     return "\n".join(lines) + "\n"
 
 
@@ -268,24 +274,36 @@ def parse_status(output: str, apps: tuple[AppRef, ...]) -> list[AppStatus]:
     by_name = {a.name: a for a in apps}
     result: list[AppStatus] = []
     current: AppStatus | None = None
+    target: AppStatus | ProcessStatus | None = None
+    ref: AppRef | None = None
     for raw in output.splitlines():
         line = raw.rstrip("\r")
         if line.startswith(_MARK):
             ref = by_name.get(line[len(_MARK) :])
             if ref is None:
-                current = None
+                current = target = None
                 continue
-            current = AppStatus(name=ref.name, unit=ref.unit)
+            current = target = AppStatus(name=ref.name, unit=ref.unit)
             result.append(current)
             continue
-        if current is None or "=" not in line:
+        if line.startswith(_PROC_MARK) and current is not None and ref is not None:
+            process = next(
+                (p for p in ref.processes if p.name == line[len(_PROC_MARK) :]), None
+            )
+            if process is None:
+                target = None
+                continue
+            target = ProcessStatus(process.name, process.unit)
+            current.processes = (*current.processes, target)
+            continue
+        if target is None or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        _apply(current, key, value.strip())
+        _apply(target, key, value.strip())
     return result
 
 
-def _apply(app: AppStatus, key: str, value: str) -> None:
+def _apply(app: AppStatus | ProcessStatus, key: str, value: str) -> None:
     if key == "LoadState":
         app.load = value
     elif key == "ActiveState":
