@@ -11,6 +11,8 @@ from dataclasses import dataclass
 
 from raspi.core.models import AppRef, AppStatus
 from raspi.core.requires import describe, missing_requirements
+from raspi.core.route_health import down_routes, route_summary
+from raspi.core.unit import unit_drift
 
 READY = "✓ Ready"
 
@@ -73,6 +75,14 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
                 "app needs none)",
             )
         return Next("Install unit…", "The app has no systemd unit yet")
+    drift = unit_drift(app, status)
+    if drift:
+        return Next(
+            "Unit out of date (Install unit…)",
+            "The unit differs from the inventory: "
+            + ", ".join(drift)
+            + ". Install unit… rewrites it; the app is not restarted.",
+        )
     if state in ("stopped", "failed"):
         absent = missing_requirements(app, status)
         if absent:
@@ -82,5 +92,7 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
             )
         return Next("Start", "The unit exists and is not running")
     if state == "running":
-        return Next(READY, done=True)
+        if down_routes(app, status):
+            return Next("Route not answering", route_summary(app, status))
+        return Next(READY, done=True, why=route_summary(app, status))
     return Next("")

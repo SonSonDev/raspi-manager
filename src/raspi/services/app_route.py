@@ -16,6 +16,7 @@ import httpx
 from raspi.cloudflare.client import CloudflareClient, CloudflareError
 from raspi.cloudflare.release import fetch_download
 from raspi.config.cloudflare_settings import CloudflareSettings
+from raspi.config.loader import ConfigError, check_route
 from raspi.core.connector import (
     DEFAULT_BIN,
     HIDDEN,
@@ -32,8 +33,10 @@ from raspi.core.connector import (
     unit_name_for,
 )
 from raspi.core.models import AppRef, Host
+from raspi.core.route_health import route_warnings
 from raspi.core.routes import RouteError
 from raspi.services import routing
+from raspi.services.declare import record_route
 from raspi.ssh.transport import Transport
 
 DownloadLookup = Callable[[str], Download]
@@ -68,6 +71,8 @@ class AppRoutePlan:
     install: bool  # the connector unit must be created
     pi_steps: list[str] = field(default_factory=list)
     replace_reason: str = ""  # set when a running connector is replaced, and why
+    check: str = "/"  # URL path read locally on every status to tell the route answers
+    warnings: list[str] = field(default_factory=list)  # overlaps with other routes
 
     @property
     def nothing_to_do(self) -> bool:
@@ -125,9 +130,15 @@ def plan_app_route(
     transport: Transport,
     repoint: bool = False,
     lookup: DownloadLookup = fetch_download,
+    check: str = "/",
 ) -> AppRoutePlan:
     """Read-only. Raises RouteError / CloudflareError / ConnectorError / DnsConflictError."""
     port = check_port(port)
+    try:
+        route = check_route(hostname, port, check)
+    except ConfigError as exc:
+        raise RouteError(str(exc)) from exc
+    warnings = route_warnings(host, app, route)
     cloudflare = routing.plan_add_route(
         client,
         settings,
@@ -145,7 +156,18 @@ def plan_app_route(
     running = state.unit_loaded and state.unit_active == "active"
     stale = _stale_reason(client, settings, cloudflare) if running else ""
     if running and not stale:
-        return AppRoutePlan(host, app, port, cloudflare, unit, state, None, False)
+        return AppRoutePlan(
+            host,
+            app,
+            port,
+            cloudflare,
+            unit,
+            state,
+            None,
+            False,
+            check=route.check,
+            warnings=warnings,
+        )
     if not state.has_sudo:
         raise ConnectorError(
             f"{host.name} needs passwordless sudo (sudo -n) to install the connector"
@@ -169,6 +191,8 @@ def plan_app_route(
         True,
         install_steps(unit, download, bin_path, replace=running),
         stale,
+        route.check,
+        warnings,
     )
 
 
@@ -263,4 +287,22 @@ def apply_app_route(
             f"Connector {plan.unit} installed and started on {plan.host.name}"
         )
     messages += verify_route(client, settings, plan, sleep, http_get)
+    messages.append(_record(plan, transport))
     return AppRouteResult(True, messages, applied.tunnel_id)
+
+
+def _record(plan: AppRoutePlan, transport: Transport) -> str:
+    """Remember the route in the app's inventory so every status can check it."""
+    saved = record_route(
+        plan.host,
+        plan.app.name,
+        plan.cloudflare.route.hostname,
+        plan.port,
+        plan.check,
+        transport,
+    )
+    if saved.ok:
+        return (
+            f"Route recorded in {plan.app.name}'s inventory (checked on every refresh)"
+        )
+    return f"Route not recorded in the inventory: {saved.message}"

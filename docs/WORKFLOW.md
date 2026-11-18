@@ -7,7 +7,7 @@ real run on `raspi-v` is listed in "Real-Pi log".
 ## 1. Vocabulary
 - **Pi**: a machine in `~/.raspi/hosts.yaml` (name, address, login user). **App**: an entry in the Pi's `~/.raspi/apps.yaml`.
 - **Declared fields** of an app (all in the Pi's `apps.yaml`, never secrets): `name`, `unit`, `repo` (`owner/name`),
-  `build`, `run`, `path`, `env_files`. They are asked **once**, in one form, and every later step reads them from there.
+  `build`, `run`, `path`, `env_files` (⬜ planned: `processes`, see §6b). They are asked **once**, in one form, and every later step reads them from there.
 - **Stage**: how far an app has come. Always *read from the Pi* (never cached, per the architecture rules).
 
 ## 2. The path, step by step
@@ -22,15 +22,16 @@ Steps 2–6 and the start are one guided flow, **App → New app…** (✅), whi
 |---|---|---|---|---|---|---|---|---|
 | 0 | Add the Pi | “Add a Pi…” / `host add` | SSH key access works (PI-SETUP) | nothing (PC `hosts.yaml` only) | table shows reachable | Pi row not “unreachable” | “Remove Pi…” | ✅ |
 | 1 | Pi ready | “Check Pi…” / `host doctor`; “Install missing…” / `host provision`; “Install Node…” / `host install-node`; **Pi → Install tools…** / `host install-tools` (ffmpeg through apt, yt-dlp from the official release; for apps that need them) | 0 | apt `git`, `curl`; `~/apps`; nvm + Node | doctor report | doctor all ✓ | apt remove / `rm -rf ~/.nvm` by hand | ✅ (uv ⬜) |
-| 2 | Key ready | “Deploy key…” / `host deploy-key` | 1 (git) | `~/.ssh/raspi_deploy_<app>`, `~/.ssh/config` block, `known_hosts` | — | `git ls-remote` via the alias succeeds | delete the 2 files + config block; remove the key on GitHub | ✅ |
+| 2 | Key ready | “Deploy key…” / `host deploy-key`; afterwards **Pi → Manage deploy keys…** / `host deploy-keys [--check]` (list, check access), `host deploy-key-rotate`, `host deploy-key-rm` | 1 (git) | `~/.ssh/raspi_deploy_<app>`, `~/.ssh/config` block, `known_hosts` | — | `git ls-remote` via the alias succeeds | “Manage deploy keys… → Delete…” / `host deploy-key-rm` (2 files + config block); remove the key on GitHub by hand | ✅ |
 | 3 | Cloned | “Install app…” / `host install-app` | 2, repo declared | `git clone` into `~/apps/<app>` | key present, disk ≥ 500 MB, folder state | folder is a git working copy at a known rev | `rm -rf` the folder | ✅ |
 | 4 | Built | same action (runs `build`) | 3, Node ready, `build` declared (may be empty) | `build` output in the working copy; `built: <rev>` in `apps.yaml` | — | build exit code 0 and `built` equals the working copy revision | `git clean` by hand | ✅ |
 | 5 | Env pushed | “Environment…” | 3 (to find candidates and the template) | env file `chmod 600` (created if it does not exist) | diff local vs Pi, names only | sync line “same as the Pi” | restore `.raspi-bak` | ✅ |
 | 6 | Unit installed | “Install unit…” / `host install-unit` | 4, `run` declared, 5 (else warning), sudo | `/etc/systemd/system/<app>.service`, enable | unit file ours/foreign/missing, node bin, env files exist | unit enabled | `systemctl disable` + delete file by hand | ✅ |
 | 7 | Running | Start / Stop / Restart / Logs | 6 | systemd state | state | state `running` and logs clean | Stop | ✅ |
-| 8 | Routed | “Set up route…” / `route add` (also repairs a connector whose tunnel was deleted: token replaced, unit restarted) | 7 (port is read from the listening socket), Cloudflare set up | tunnel + ingress + DNS (Cloudflare), connector unit on the Pi | read-only plan | tunnel healthy, HTTPS answers | “Remove route”, “Delete tunnel…” | ✅ (never run on the real account) |
+| 8 | Routed | “Set up route…” / `route add` (also repairs a connector whose tunnel was deleted: token replaced, unit restarted). **Run once per hostname**: an app may have several routes (hostname → port, optional check path), all in the app's one tunnel; each success is recorded in its `routes:` entry | 7 (port is read from the listening socket), Cloudflare set up | tunnel + ingress + DNS (Cloudflare), connector unit on the Pi (only for the first route), `routes:` in `apps.yaml` | read-only plan; duplicate hostname refused, shared port warned | tunnel healthy, HTTPS answers; then every status reads each route's local check (“main up, share down”) | “Remove route”, “Delete tunnel…” | ✅ (never run on the real account) |
 | — | Remove | “Remove app…” / `host remove-app` | the app is in the inventory | what is ticked, see §6 point 5 | the plan lists what exists and what is refused | the app disappears from the table | add it again with “New app…” | ✅ |
 | 9 | Update | “Update…” / `host update`, `host rollback` | 3, 4 (a working copy and a `repo`) | detached checkout of one commit, build, restart if it was running; `built` and `previous` recorded | fetch, then old → new revision, incoming commit subjects, dirty / local-only check | `built` equals the new revision; app running | “Update…” → go back / `host rollback` | ✅ (fake Pi; probe rehearsed read-only on `raspi-v`) |
+| 10 | Moved | **App → Move to another device…** / `host move-app SOURCE APP TARGET` | the app set up on TARGET at the same revision (steps 2–7 without starting it), TARGET not running it | stop on SOURCE; each `requires: folder` copied as tar through this PC into an empty folder of TARGET; env files copied; unit started on TARGET; unit disabled on SOURCE | read-only probe of both: unit state, revision, CPU, Node major, sudo, free disk, mounts, data folder state and size, env folders | SHA-256 of every file equal on both sides; unit active on TARGET | SOURCE keeps its data: enable and start its unit again, stop TARGET's | ✅ (fake Pi; scripts run for real in a throw-away home; probe not yet run on a real Pi) |
 
 Entry path B, **adopt an existing service** (`Scan apps…` / `host adopt`): the app enters at step 6 (unit exists, not ours,
 never overwritten). Steps 2–4 are skipped; 5, 7, 8 apply as usual.
@@ -114,10 +115,63 @@ If code and this file disagree, say so and fix one of them in the same change.
    file beside it proposes creating `<folder>/.env`. When that file does not exist on the Pi and nothing is saved locally,
    the editor starts from the template: defaults the project wrote are kept, names that look secret (SECRET, PASSWORD,
    PASSPHRASE, TOKEN, KEY, PRIVATE) and placeholder values (`change-me`, `<…>`, `your-…`) start empty; the editor and the
-   push confirmation name the variables still without a value. Nothing is invented.
+   push confirmation name the variables still without a value. Nothing is invented. **Reset from template…** (in the editor)
+   replaces the editor's variables by the template's after a confirmation (same rules); nothing is written to the Pi until
+   the usual push, and “Import from Pi…” brings the current file back.
 6. **Environment in the wizard.** Between steps 4 and 6 the wizard looks, read-only, for `.env.example` (and similar
    templates) in the working copy and uses its variable names to pre-fill the Environment editor (values left to fill,
    never invented); the file is then pushed from the local copy, and the unit is created only after that.
+
+7a. **Move an app to another Pi** (✅, fake Pi). Refusals (nothing is touched): same Pi, app not in TARGET's inventory, no
+   unit or no working copy on TARGET, TARGET at another revision, TARGET already running the app, CPU or Node major differ,
+   no passwordless sudo, a `mount` prerequisite not mounted, a data folder on TARGET that is not empty (never overwritten) or
+   whose parent is missing (raspi creates only the last folder, never the path), an env file's folder missing, more than
+   512 MB of data (held in memory on the PC), too little disk (twice the data + 500 MB). The source is stopped first and only
+   if it was running; a stopped source copies the data and starts nothing. Any failure before the target starts restarts the
+   source (when it was running) and empties the folders just written on TARGET. A checksum difference aborts. The source
+   unit is disabled only after the target is active; **the source data is never deleted** (use “Remove app…” later, when
+   decided). Env files travel as text through memory, are never shown or saved on the PC, and replace TARGET's with a
+   `.raspi-bak`. Not done: an app-provided check command (e.g. `PRAGMA integrity_check`), the Cloudflare route (re-run
+   “Set up route…” on TARGET), setting TARGET up in the same flow, inventory change on SOURCE.
+7. **Several routes per app** (⬜, first lot of Silent Fill's requests). `apps.yaml` entry gets an optional `routes:` list,
+   `{hostname, port, check}` (`check`: absolute URL path, default `/`). “Set up route…” is run once per hostname; the first
+   run creates the tunnel and the connector, the next ones only add an ingress rule and a DNS record (same tunnel
+   `raspi-manager-<pi>--<app>`). A successful run records the route in the Pi's `apps.yaml` (no `apps.yaml`: hosts.yaml).
+   Validation: the same hostname twice in one app is refused when the file is read and when a route is planned; the same
+   hostname on another app, or the same port on another app of that Pi, is a warning in the plan, not a refusal.
+   **Route check:** every status also runs, read-only on the Pi, `curl` against `http://127.0.0.1:<port><check>` for each
+   declared route and keeps the HTTP code (0: nothing answered). The Next-step tooltip and the app row's tooltip say
+   “main up, share down” per route, by hostname and port only (never the response body). A route whose port does not
+   answer after a start is a warning, not a block. Picking a check path that is cheap and has no secrets (e.g. `/robots.txt`)
+   is up to the app; raspi never prints a response body or a query string.
+
+## 6b. Several processes per app, and the unit kept in step (⬜ planned, decided 2026-11-18)
+Asked for an app whose collector must not restart on every update while its web server must. Nothing here is built yet.
+1. **Declare** (⬜): one list `processes:` of `{name, run, on_update}` in the app's `apps.yaml` entry. GUI: the “Install app…”
+   form has a “Processes” list (name, run, update rule; “Add process”) in place of the single run field, and **App → Edit
+   processes…** reopens it pre-filled. CLI: `install-app … --process NAME:COMMAND:RULE` (repeatable; `--run` stays and
+   makes the process `main`). `name`: lowercase letters, digits, `-`; unique; `run` validated like today's.
+2. **Units** (⬜): “Install unit…” / `install-unit` writes one unit per process, `<app>-<name>.service` (a lone `main`
+   keeps `<app>.service`), same user, working copy and env files, marked `# managed by raspi-manager`; one confirmation
+   shows every file. A process removed from the list gets its unit stopped, disabled and deleted, only if ours.
+3. **Update rule** `on_update` (⬜): `restart` (default: restarted when it was running), `keep` (never restarted by an
+   update or a rollback; it runs the old code until restarted by hand), `ask` (a tick box in the Update confirmation, ticked
+   by default). A stopped process stays stopped. The plan lists each process and what happens to it; the build runs once.
+4. **Restart one process** (⬜): Start, Stop, Restart and Logs act on the selected process; “Restart now” on a kept one.
+5. **Table** (⬜): one row per process; a process started before the last build or on another revision than the working
+   copy shows “old code” in Next step, with the reason in the tooltip.
+6. **Existing unit** (⬜): a unit already running as `<app>.service` is adopted as the process `main` (or the name given),
+   keeping its unit name; nothing is restarted by the migration.
+7. **Unit drift** (✅ fake Pi; the detection's read-only lines also run in a throw-away shell): at each refresh, read-only, the unit a process should have (from `apps.yaml`) is compared with the
+   file on the Pi, for units carrying our marker only. A difference shows “Unit out of date” in Next step (the tooltip names
+   the field: command, env files, path). “Install app…” that changes `run`, `env_files` or `processes` on an app whose unit
+   is installed adds a ticked box “Also rewrite the unit …” to its confirmation (GUI; CLI `--update-unit/--keep-unit`, default update), with the unit file in the details. Offered only when the unit is ours and `run`, `path` or env files changed for a known app. Writing a unit never restarts
+   the process; the confirmation says the new command applies at the next start, and `on_update` is applied as above.
+   Compared: run command, environment files, working folder (names only, never values); not Node's folder. Not shown for a
+   foreign unit or an app without `run`. Origin: a changed run command had no effect until “Install unit…” was run again, and nothing said so.
+8. **Risks to cover in tests and warnings**: a rollback or build replaces files under a kept process; a schema change
+   under a kept process that shares a database (open question in QUESTIONS.md).
+Undo: put the old list back with “Edit processes…” and apply; units are rewritten or removed accordingly.
 
 ## 7. Per-step acceptance checklist (run by the developer on a real Pi before a step is called done)
 - [ ] The button/command is disabled with a reason when the prerequisite is missing, enabled otherwise.

@@ -12,7 +12,8 @@ import base64
 import shlex
 from dataclasses import dataclass
 
-from raspi.core.models import AppRef
+from raspi.core.install import work_dir
+from raspi.core.models import AppRef, AppStatus
 
 MARKER = "# managed by raspi-manager"
 UNIT_DIR = "/etc/systemd/system"
@@ -60,6 +61,27 @@ def render_unit(app: AppRef, user: str, workdir: str, node_bin: str) -> str:
         "WantedBy=multi-user.target",
     ]
     return "\n".join(lines) + "\n"
+
+
+def unit_drift(app: AppRef, status: AppStatus) -> list[str]:
+    """What differs between our unit on the Pi and what the inventory implies (names, never values).
+
+    Only a unit made by raspi-manager is compared (a foreign one is never ours to judge) and only
+    for an app with a `run` command. Node's folder is left out: it changes with nvm, not with the
+    inventory.
+    """
+    if not status.unit_ours or not app.run:
+        return []
+    drift = []
+    if status.unit_exec != f'/bin/sh -c "exec {systemd_quote(app.run)}"':
+        drift.append("run command")
+    if status.unit_env != tuple(f.path for f in app.env_files):
+        drift.append("environment files")
+    if status.home:
+        expected = work_dir(app).replace("$HOME", status.home)
+        if status.unit_dir != expected:
+            drift.append("working folder")
+    return drift
 
 
 # --- what is on the Pi ----------------------------------------------------------------

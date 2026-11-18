@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from raspi.config.loader import ConfigError, check_route
 from raspi.core.models import AppRef, Host
 from raspi.core.routes import RouteError, check_hostname
 from raspi.gui.workers import submit
@@ -22,7 +23,7 @@ from raspi.ssh.transport import Transport
 
 
 class RouteSetupDialog(QDialog):
-    """On accept, `result_value` is (hostname, port)."""
+    """On accept, `result_value` is (hostname, port, check path)."""
 
     def __init__(
         self,
@@ -33,7 +34,7 @@ class RouteSetupDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self.result_value: tuple[str, int] | None = None
+        self.result_value: tuple[str, int, str] | None = None
         self.setWindowTitle(f"Set up a route - {app.name}")
         self.resize(560, 280)
 
@@ -50,6 +51,12 @@ class RouteSetupDialog(QDialog):
         self.port_box.setEditable(True)
         self.port_box.setAccessibleName("Local port of the app on the Pi")
         self.port_box.lineEdit().setPlaceholderText("2567")
+        self.check_edit = QLineEdit("/")
+        self.check_edit.setAccessibleName("Check path")
+        self.check_edit.setToolTip(
+            "Read locally on the Pi at every refresh to tell this route answers "
+            "(only the status code is kept). Use a cheap public path such as /robots.txt."
+        )
         self.hint = QLabel(f"Looking for the port {app.name} listens on (read-only)…")
         self.hint.setWordWrap(True)
         self.error = QLabel("")
@@ -59,6 +66,7 @@ class RouteSetupDialog(QDialog):
         form = QFormLayout()
         form.addRow("Public hostname", self.hostname_edit)
         form.addRow("Port on the Pi", self.port_box)
+        form.addRow("Check path", self.check_edit)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -96,9 +104,10 @@ class RouteSetupDialog(QDialog):
         try:
             hostname = check_hostname(self.hostname_edit.text())
             port = check_port(self.port_box.currentText())
-        except RouteError as exc:
+            check = check_route(hostname, port, self.check_edit.text().strip()).check
+        except (RouteError, ConfigError) as exc:
             self.error.setText(str(exc))
             self.error.setVisible(True)
             return
-        self.result_value = (hostname, port)
+        self.result_value = (hostname, port, check)
         self.accept()

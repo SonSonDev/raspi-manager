@@ -17,5 +17,6 @@ in SPEC / DECISIONS / WORKFLOW). Cleaned on 2026-11-15: answered, obsolete or su
 - [ ] **First real run** (nothing done on the real account yet): create an API token (Account › Cloudflare Tunnel: Edit, Zone › DNS: Edit, plus Zone › Zone: Read if the look-up fails; limited to the account and `nanmonee.com`), paste it in “Cloudflare…”, look up the zone. Then “Add route…” or “Set up route…” shows the exact changes before applying.
 
 ## Product
+- [ ] **Kept process and database changes** (see WORKFLOW §6b): when a build or an update changes the schema of a database shared with a process set to `keep`, should the plan warn, refuse, or require a restart of that process? Recommendation: warn only when the app declares a migration step; no declaration, no detection.
 - [ ] **`pause`**: SIGSTOP (keeps memory, may break WebSocket apps) or just stop? Recommendation: offer SIGSTOP and warn.
 - [ ] **uv on the Pi**: installer script, release binary or apt? Only needed for Python apps.

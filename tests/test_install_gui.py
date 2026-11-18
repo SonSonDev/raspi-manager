@@ -18,9 +18,7 @@ def qapp():
 
 
 def test_fields_become_a_validated_app():
-    app = app_from_fields(
-        "notes-app", "SonSonDev/notes-app", "npm ci", "npm start", ""
-    )
+    app = app_from_fields("notes-app", "SonSonDev/notes-app", "npm ci", "npm start", "")
     assert (app.unit, app.repo, app.build, app.run, app.path) == (
         "notes-app.service",
         "SonSonDev/notes-app",

@@ -40,7 +40,7 @@ def test_dialog_prefills_lists_ports_and_validates(qapp):
     d._on_ports([2567, 3000])
     assert [d.port_box.itemText(i) for i in range(2)] == ["2567", "3000"]
     d._accept()
-    assert d.result_value == ("web-game.example.com", 2567)
+    assert d.result_value == ("web-game.example.com", 2567, "/")
     d2 = RouteSetupDialog(HOST, APP, "example.com", Pi())
     d2.hostname_edit.setText("not a host")
     d2._accept()
@@ -89,7 +89,7 @@ def flow(qapp, monkeypatch):
         )
 
     def fake_exec(self):
-        self.result_value = ("game.example.com", 2567)
+        self.result_value = ("game.example.com", 2567, "/")
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(RouteSetupDialog, "exec", fake_exec)

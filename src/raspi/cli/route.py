@@ -61,6 +61,9 @@ def route_add(
     repoint: bool = typer.Option(
         False, "--repoint", help="Point an existing CNAME at the new tunnel"
     ),
+    check: str = typer.Option(
+        "/", "--check", help="URL path read locally on every refresh (e.g. /robots.txt)"
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show everything, change nothing"
     ),
@@ -79,7 +82,15 @@ def route_add(
     client, settings = _client_and_settings()
     try:
         plan = app_route.plan_app_route(
-            client, settings, pi, app, hostname, port_text, transport, repoint
+            client,
+            settings,
+            pi,
+            app,
+            hostname,
+            port_text,
+            transport,
+            repoint,
+            check=check,
         )
     except routing.DnsConflictError as exc:
         extra = (
@@ -94,6 +105,8 @@ def route_add(
     typer.echo(f"{app.name} on {pi.name}, port {plan.port}:")
     for step in plan.steps:
         typer.echo(f"  - {step}")
+    for warning in plan.warnings:
+        typer.secho(f"  ! {warning}", fg="yellow")
     if plan.replace_reason:
         typer.secho(
             f"  ! The connector on the Pi is replaced: {plan.replace_reason}.",

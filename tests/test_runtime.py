@@ -22,9 +22,7 @@ class Pi:
             return RunResult(True, self.check)
         if "nvm.sh" in script and "nvm install" not in script:
             return RunResult(True, self.nvm + "\n")
-        return RunResult(
-            True, "node=/home/pi/.nvm/versions/node/v22.1.0/bin/node\n"
-        )
+        return RunResult(True, "node=/home/pi/.nvm/versions/node/v22.1.0/bin/node\n")
 
 
 def test_installer_is_checked_before_it_runs():

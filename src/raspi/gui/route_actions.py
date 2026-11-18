@@ -18,7 +18,7 @@ class RouteMixin:
     """Mixed into MainWindow: relies on its `_transport`, `selected`, `model`,
     `status_label` and `_refresh_host`."""
 
-    _route_request: tuple[Host, AppRef, str, int] | None = None
+    _route_request: tuple[Host, AppRef, str, int, str] | None = None
 
     def can_route(self) -> bool:
         row = self.selected()
@@ -47,14 +47,14 @@ class RouteMixin:
         )
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
             return
-        hostname, port = dialog.result_value
-        self._route_request = (row.host, row.app, hostname, port)
+        hostname, port, check = dialog.result_value
+        self._route_request = (row.host, row.app, hostname, port, check)
         self._plan_route(CloudflareClient(token), settings, repoint=False)
 
     def _plan_route(self, client, settings, repoint: bool) -> None:
         if self._route_request is None:
             return
-        host, app, hostname, port = self._route_request
+        host, app, hostname, port, check = self._route_request
         self.status_label.setText(f"Checking what a route for {app.name} would change…")
 
         def job():
@@ -68,6 +68,7 @@ class RouteMixin:
                     port,
                     self._transport,
                     repoint,
+                    check=check,
                 )
             except routing.DnsConflictError as conflict:
                 return client, settings, conflict  # asked about on the GUI thread
@@ -134,6 +135,7 @@ class RouteMixin:
         box.setInformativeText(
             "This changes your Cloudflare account and the Pi:\n"
             + "\n".join(f"• {s}" for s in plan.steps)
+            + "".join(f"\n⚠ {w}" for w in plan.warnings)
             + (
                 f"\n\nWhy the connector on the Pi is replaced: {plan.replace_reason}."
                 if plan.replace_reason

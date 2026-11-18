@@ -49,6 +49,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   keys to `known_hosts` when github.com is absent (read by the PC from `api.github.com/meta` over HTTPS), shows the public
   key to add as a read-only deploy key, and with `--repo` checks it with `git ls-remote` (“Check again”). Existing keys and
   settings are kept.
+- **Manage deploy keys** (done, fake Pi; list and delete scripts also run for real in a throw-away home): **Pi → Manage deploy keys…** / `host deploy-keys NAME [--check]`, `host deploy-key-rotate NAME APP`, `host deploy-key-rm NAME APP` (both `--dry-run`, `--yes`). Lists, read-only, the keys of `~/.ssh/raspi_deploy_*` and the alias blocks carrying our marker: app, repository (from the app of the same name in the inventory), fingerprint, used or not, “incomplete” when only one of key file and alias exists. “Check access” (`--check`) runs `git ls-remote` per key and shows ✓ accepted / ✕ refused. “Copy public key”. **Rotate** deletes the key and makes a new one (alias and GitHub host keys kept or restored) and shows the new public key to add on GitHub; **Delete** removes the key files and the alias block only. Both show the exact script, warn when an app still uses the key, and are refused while another change runs on that Pi. Not done: adding or deleting the key on GitHub (needs a GitHub token; stays manual), keys not made by raspi-manager.
 - **Tools** (done, fake Pi; the read-only plan rehearsed on `raspi` and `raspi-v`): **Pi → Install tools…** / `host install-tools NAME [ffmpeg] [yt-dlp] [--dry-run] [--yes]`. A picker shows what the Pi has and ticks what is missing or old. ffmpeg comes from the distribution through apt. yt-dlp comes from the latest official GitHub release (Debian's package is months old): the file for the Pi's architecture (`yt-dlp_linux` x86_64, `yt-dlp_linux_aarch64` a single executable, `yt-dlp_linux_armv7l.zip` a zipped folder unpacked in `/opt/yt-dlp`), its SHA-256 from the release's `SHA2-256SUMS`, run once (`--version`) before anything is replaced, installed as `/usr/local/bin/yt-dlp` (root, 755; in the PATH of raspi's units); installing again updates it. Needs passwordless sudo and curl; the 32-bit bundle also needs unzip (installed through apt). “Check Pi…” lists both tools as optional. The release signature (`.sig`) is not verified, only the checksum.
 - Not done: installing uv (method open), `role`, a key-install wizard (the SSH key is a terminal step).
 
@@ -76,6 +77,18 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
   working copy, `Restart=on-failure`, nvm's Node first in `PATH`, one `EnvironmentFile=` per declared env file. A unit
   without our marker is never overwritten. Needs passwordless sudo; reports a missing Node or env file.
 - **Remove app** (done, fake Pi; the script also run for real in a throw-away home): “Remove app…” / `host remove-app`. Six items, each separate: the list entry in `apps.yaml` and the unit (stopped, disabled, file deleted; only if made by raspi-manager) are ticked at first; the working copy (git working copies under the home folder only, and not when they hold a `requires:` path), the deploy key and its ssh alias, the env file(s) on the Pi (under home) and the local env copies on the PC are unticked. Unavailable items are greyed with the reason. The exact script is shown and follows the ticks; the app name must be typed (CLI: prompted, `--yes` skips). Pi first, list entry last. Never touched: `requires:` folders, anything outside home, the Cloudflare route and tunnel.
+- **Move to another device** (done, fake Pi; scripts also run for real in a throw-away home): **App → Move to another device…** /
+  `host move-app SOURCE APP TARGET [--dry-run] [--yes]` carries an app's data folders (`requires: folder`) and env files to a
+  Pi where the app is already set up at the same revision, then starts it there and leaves the source stopped and disabled,
+  its data kept. Refusals, checksums and rollback: WORKFLOW §6 item 7a. Needs `ssh` to both Pis from this PC (data is relayed
+  through it, never Pi to Pi). Not done: app-provided check command, route and inventory follow-up.
+- **Several processes per app** (planned, decided 2026-11-18; flow in WORKFLOW §6b): `processes:` list `{name, run,
+  on_update}` in `apps.yaml`, one unit `<app>-<name>.service` each; `on_update`: `restart` (default), `keep` (an update or
+  rollback never restarts it), `ask` (tick box in the Update confirmation); one table row per process; “old code” when a
+  kept process predates the last build; an existing `<app>.service` is adopted as `main`. A single `run` stays valid.
+- **Unit drift** (detection done, fake Pi; the read-only lines also run in a throw-away shell): a unit of ours whose run
+  command, environment files or working folder differ from `apps.yaml` shows “Unit out of date (Install unit…)” in Next
+  step, with the field names in the tooltip (never values). “Install app…” on a known app whose `run` or `path` changed, with a unit of ours installed, adds a ticked box “Also rewrite the unit …” (CLI `--update-unit/--keep-unit`); the unit is written after the inventory and the app is never restarted. Not offered for a new app, a missing unit (use “Install unit…”) or a foreign one. Writing a unit never restarts the process.
 - Not done: edit fields other than through Install app.
 
 ## F3 — Update and rollback
@@ -112,6 +125,7 @@ Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`)
   folders below the app (templates and our backups skipped) and writes the declaration to the Pi's `apps.yaml` (or
   `hosts.yaml` when the Pi has none).
 - Done: templates (`.env.example`, `.sample`, `.template`, `.dist`) are found next to the env files, also for an app without a declared path (`~/apps/<app>`); a template with no `.env` beside it proposes creating one, and the editor then starts from it (project defaults kept, secret-looking names and placeholders empty); empty variables are counted in the sync line and named in the push confirmation. Planned: the same pre-fill inside the “New app” wizard.
+- **Reset from template…** (done): in the editor, replaces the variables by the template's after a confirmation; nothing pushed.
 - Not done: CLI `raspi env ...`, scan of code for missing `process.env.X`, required-keys check before deploy, per-Pi overrides.
 - Values are secrets: never printed, logged, in tooltips, exceptions or test messages.
 
@@ -135,7 +149,8 @@ Built and tested against a simulated Cloudflare only (never run on the real acco
 - Cloudflare API facts (official docs, checked 2026-10-17): `POST /accounts/{id}/cfd_tunnel` `{"name","config_src":"cloudflare"}`
   returns `id` and `token`; `PUT …/cfd_tunnel/{tunnel}/configurations` with `config.ingress`; `POST /zones/{zone}/dns_records`
   proxied CNAME to `<tunnel-id>.cfargotunnel.com`; token needs Account › Cloudflare Tunnel (Edit) and Zone › DNS (Edit).
-- Not done: deleting DNS records, recording the hostname in the app's inventory entry, removing a connector from a Pi,
+- **Several routes per app** (done, fake Pi/Cloudflare): `routes:` in the app's inventory entry (`hostname`, `port`, `check` path); Set up route… / `route add [--check PATH]` is run once per hostname and records each success; plan warnings for a hostname or port shared with another app. Every status reads each route locally (status code only); a route that does not answer shows “Route not answering” in Next step with “host :port up/down” detail.
+- Not done: deleting DNS records, removing a route from the inventory when it is removed in Cloudflare, removing a connector from a Pi,
   per-app routes in the main table.
 
 ## F7 — Main UI

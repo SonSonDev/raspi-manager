@@ -9,7 +9,15 @@ from pathlib import Path
 import yaml
 
 from raspi.core.deploykey import DeployKeyError, check_repo
-from raspi.core.models import REQUIREMENT_KINDS, AppRef, EnvFile, Host, Requirement
+from raspi.core.models import (
+    REQUIREMENT_KINDS,
+    AppRef,
+    AppRoute,
+    EnvFile,
+    Host,
+    Requirement,
+)
+from raspi.core.routes import RouteError, check_hostname
 
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _UNIT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]*\.service$")
@@ -103,6 +111,38 @@ def _requires(app: dict) -> tuple[Requirement, ...]:
     return found
 
 
+_CHECK_PATH = re.compile(r"^/[A-Za-z0-9._~/-]{0,200}$")
+
+
+def check_route(hostname: object, port: object, check: object = "/") -> AppRoute:
+    """Validate one route (hostname, local port, check path); raises ConfigError."""
+    try:
+        host = check_hostname(str(hostname or "").strip().lower())
+    except RouteError as exc:
+        raise ConfigError(str(exc)) from exc
+    if isinstance(port, bool) or not str(port).strip().isdigit():
+        raise ConfigError(f"Invalid route port {port!r} (1-65535)")
+    number = int(str(port).strip())
+    if not 0 < number < 65536:
+        raise ConfigError(f"Invalid route port {port!r} (1-65535)")
+    path = str(check if check else "/")
+    if not _CHECK_PATH.match(path) or ".." in path.split("/"):
+        raise ConfigError(f"Invalid check path {path!r} (letters, digits, . _ ~ / -)")
+    return AppRoute(host, number, path)
+
+
+def _routes(app: dict) -> tuple[AppRoute, ...]:
+    items = app.get("routes") or []
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        raise ConfigError("routes must be a list of {hostname, port, check} entries")
+    found = tuple(
+        check_route(i.get("hostname"), i.get("port"), i.get("check")) for i in items
+    )
+    if len({r.hostname for r in found}) != len(found):
+        raise ConfigError(f"Duplicate route hostname in app {app.get('name')!r}")
+    return found
+
+
 def _env_files(app: dict) -> tuple[EnvFile, ...]:
     """`env_file: /path` (one file) and/or `env_files: [{label, path}, ...]`."""
     files = []
@@ -167,6 +207,7 @@ def _apps(items: object) -> tuple[AppRef, ...]:
             built=check_rev(a["built"]) if a.get("built") else None,
             previous=check_rev(a["previous"]) if a.get("previous") else None,
             requires=_requires(a),
+            routes=_routes(a),
         )
         for a in items
     )

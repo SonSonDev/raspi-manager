@@ -17,12 +17,13 @@ from raspi.config.loader import (
     ConfigError,
     check_env_path,
     check_label,
+    check_route,
     load_hosts,
     parse_manifest,
 )
 from raspi.config.writer import add_env_file, remove_env_file
 from raspi.core.manifest import render_manifest
-from raspi.core.models import AppRef, EnvFile, Host
+from raspi.core.models import AppRef, AppRoute, EnvFile, Host
 from raspi.core.remote import build_manifest_read_script, parse_env_read
 from raspi.services.inventory import PublishPlan, publish
 from raspi.ssh.transport import Transport
@@ -54,6 +55,17 @@ def _edit_on_pi(
     edit: Callable[[tuple[EnvFile, ...]], tuple[EnvFile, ...]],
     transport: Transport,
 ) -> DeclareResult:
+    return _edit_app_on_pi(
+        host, app_name, lambda a: replace(a, env_files=edit(a.env_files)), transport
+    )
+
+
+def _edit_app_on_pi(
+    host: Host,
+    app_name: str,
+    edit: Callable[[AppRef], AppRef],
+    transport: Transport,
+) -> DeclareResult:
     read = transport.run_script(host, build_manifest_read_script())
     if not read.ok:
         return DeclareResult(False, f"Cannot read {host.name}: {read.error}")
@@ -67,7 +79,7 @@ def _edit_on_pi(
             return DeclareResult(
                 False, f"{app_name} is not in apps.yaml on {host.name}."
             )
-        updated = replace(current, env_files=edit(current.env_files))
+        updated = edit(current)
     except (yaml.YAMLError, ConfigError) as exc:
         return DeclareResult(False, str(exc))
     new_apps = tuple(updated if a.name == app_name else a for a in apps)
@@ -116,4 +128,32 @@ def forget_env_file(
         return _edit_on_pi(host, app_name, lambda f: _removed(f, label), transport)
     return _edit_in_hosts_yaml(
         host, app_name, lambda: remove_env_file(host.name, app_name, label)
+    )
+
+
+def _with_route(routes: tuple[AppRoute, ...], route: AppRoute) -> tuple[AppRoute, ...]:
+    """The route added, or replaced when its hostname is already recorded (order kept)."""
+    if any(r.hostname == route.hostname for r in routes):
+        return tuple(route if r.hostname == route.hostname else r for r in routes)
+    return routes + (route,)
+
+
+def record_route(
+    host: Host,
+    app_name: str,
+    hostname: str,
+    port: int,
+    check: str,
+    transport: Transport,
+) -> DeclareResult:
+    """Record a route in the Pi's apps.yaml (a Pi without that file records nothing)."""
+    try:
+        route = check_route(hostname, port, check)
+    except ConfigError as exc:
+        return DeclareResult(False, str(exc))
+    return _edit_app_on_pi(
+        host,
+        app_name,
+        lambda a: replace(a, routes=_with_route(a.routes, route)),
+        transport,
     )

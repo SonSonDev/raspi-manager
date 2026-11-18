@@ -32,6 +32,21 @@ def _workdir(app: AppRef) -> str | None:
     return None
 
 
+def _unit_read_lines(app: AppRef) -> list[str]:
+    """Read-only: the fields of our own unit file that the inventory decides (unit drift)."""
+    unit = shlex.quote(f"/etc/systemd/system/{app.unit}")
+    marker = shlex.quote("# managed by raspi-manager")
+    return [
+        f"if grep -qxF {marker} {unit} 2>/dev/null; then",
+        "  echo unitours=yes",
+        '  echo "home=$HOME"',
+        f"  sed -n 's/^ExecStart=/unitexec=/p' {unit} | head -n 1",
+        f"  sed -n 's/^EnvironmentFile=/unitenv=/p' {unit}",
+        f"  sed -n 's/^WorkingDirectory=/unitdir=/p' {unit} | head -n 1",
+        "fi",
+    ]
+
+
 def build_status_script(apps: tuple[AppRef, ...]) -> str:
     """Shell script that only reads state (systemctl show, git rev-parse/status/remote)."""
     lines = []
@@ -39,6 +54,7 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
         lines.append(f"echo {shlex.quote(_MARK + app.name)}")
         props = " ".join(f"-p {p}" for p in SHOW_PROPS)
         lines.append(f"systemctl show {shlex.quote(app.unit)} {props} 2>&1")
+        lines += _unit_read_lines(app)
         workdir = _workdir(app)
         if app.repo:
             key = f'"$HOME/.ssh/raspi_deploy_{app.name}"'
@@ -51,6 +67,13 @@ def build_status_script(apps: tuple[AppRef, ...]) -> str:
                 "mount": f"mountpoint -q {p}",
             }
             lines.append(f"{test[req.kind]} && echo req{i}=yes || echo req{i}=no")
+        for i, route in enumerate(app.routes):
+            url = shlex.quote(f"http://127.0.0.1:{route.port}{route.check}")
+            # Status code only; the body is never read. 000 when nothing answers.
+            lines.append(
+                f"echo route{i}=$(curl -s -o /dev/null -m 3 -w '%{{http_code}}' {url} "
+                "2>/dev/null || echo 000)"
+            )
         for i, env in enumerate(app.env_files):
             p = shlex.quote(env.path)
             lines.append(f"[ -f {p} ] && echo envfile{i}=yes || echo envfile{i}=no")
@@ -279,6 +302,16 @@ def _apply(app: AppStatus, key: str, value: str) -> None:
         app.restarts = int(value) if value.isdigit() else 0
     elif key == "key":
         app.key_present = value == "yes"
+    elif key == "unitours":
+        app.unit_ours = value == "yes"
+    elif key == "unitexec":
+        app.unit_exec = value
+    elif key == "unitenv":
+        app.unit_env = (*app.unit_env, value)
+    elif key == "unitdir":
+        app.unit_dir = value
+    elif key == "home":
+        app.home = value
     elif key.startswith("req") and key[3:].isdigit():
         index = int(key[3:])
         flags = list(app.requires_present) + [False] * (
@@ -286,6 +319,11 @@ def _apply(app: AppStatus, key: str, value: str) -> None:
         )
         flags[index] = value == "yes"
         app.requires_present = tuple(flags)
+    elif key.startswith("route") and key[5:].isdigit():
+        index = int(key[5:])
+        codes = list(app.route_codes) + [0] * (index + 1 - len(app.route_codes))
+        codes[index] = int(value) if value.isdigit() else 0
+        app.route_codes = tuple(codes)
     elif key.startswith("envfile") and key[7:].isdigit():
         index = int(key[7:])
         flags = list(app.env_present) + [False] * (index + 1 - len(app.env_present))

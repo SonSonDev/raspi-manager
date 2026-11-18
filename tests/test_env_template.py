@@ -33,9 +33,7 @@ API_TOKEN=abc123
 COOKIE_SECURE=true
 OPTIONAL=
 """
-SCAN = (
-    "@@DIR=/home/pi/apps/notes-app\n./.env.example\n./apps/web/.env.local.bak\n"
-)
+SCAN = "@@DIR=/home/pi/apps/notes-app\n./.env.example\n./apps/web/.env.local.bak\n"
 APP = AppRef("notes-app", "notes-app.service", repo="me/notes-app")
 HOST = Host("pi", "10.0.0.1", "pi", (APP,))
 
@@ -53,8 +51,7 @@ class Pi:
                 return RunResult(True, "@@NONE\n")
             return RunResult(
                 True,
-                "@@TEMPLATE /home/pi/apps/notes-app/.env.example\n"
-                + self.template,
+                "@@TEMPLATE /home/pi/apps/notes-app/.env.example\n" + self.template,
             )
         return RunResult(True, "@@MISSING\n")  # the env file itself does not exist
 
@@ -146,5 +143,52 @@ def test_editor_starts_from_the_template_and_warns_about_empty_values(
     assert dialog._tpl_empty_lines(dialog.values()) == [
         "Without a value: API_TOKEN, BOOTSTRAP_PASSPHRASE, OPTIONAL"
     ]
+    dialog._dirty = False
+    dialog.close()
+
+
+def test_reset_from_template_replaces_the_editor_without_pushing(
+    qapp, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("RASPI_HOME", str(tmp_path))
+    env = EnvFile("default", "/home/pi/apps/notes-app/.env")
+    app = AppRef("notes-app", "notes-app.service", env_files=(env,))
+    monkeypatch.setattr(env_template, "submit", lambda fn, ok, bad=None: ok(fn()))
+
+    class Yes:
+        class Icon:
+            Warning = 0
+
+        class ButtonRole:
+            AcceptRole = 0
+            RejectRole = 1
+
+        def __init__(self, parent=None):
+            self.go = object()
+
+        def __getattr__(self, name):
+            return lambda *a, **k: None
+
+        def addButton(self, text, role):
+            return self.go if text == "Reset" else object()
+
+        def clickedButton(self):
+            return self.go
+
+    monkeypatch.setattr(env_template, "QMessageBox", Yes)
+    pi = Pi()
+    dialog = EnvDialog(Host("pi", "10.0.0.1", "pi", (app,)), app, pi, None)
+    dialog._fill({"OLD": "1"})
+    dialog.reset_from_template()
+    assert set(dialog.values()) == {
+        "PORT",
+        "DATA_DIR",
+        "BOOTSTRAP_PASSPHRASE",
+        "API_TOKEN",
+        "COOKIE_SECURE",
+        "OPTIONAL",
+    }
+    assert "not pushed yet" in dialog.note.text()
+    assert not any("base64 -d" in s for s in getattr(pi, "scripts", []))
     dialog._dirty = False
     dialog.close()

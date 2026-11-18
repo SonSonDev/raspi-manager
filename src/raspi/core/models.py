@@ -24,6 +24,15 @@ class Requirement:
 
 
 @dataclass(frozen=True)
+class AppRoute:
+    """A public hostname served by one local port of the app (several allowed per app)."""
+
+    hostname: str
+    port: int
+    check: str = "/"  # URL path read locally to tell the route is answering
+
+
+@dataclass(frozen=True)
 class AppRef:
     name: str
     unit: str
@@ -39,6 +48,9 @@ class AppRef:
         None  # revision built before the last update (rollback target)
     )
     requires: tuple[Requirement, ...] = ()  # checked read-only, never created
+    routes: tuple[
+        AppRoute, ...
+    ] = ()  # recorded by "Set up route…", checked on every status
 
 
 @dataclass(frozen=True)
@@ -68,6 +80,12 @@ class AppStatus:
     )
     env_present: tuple[bool, ...] = ()  # per declared env file: does it exist on the Pi
     requires_present: tuple[bool, ...] = ()  # per `requires` entry: satisfied on the Pi
+    route_codes: tuple[int, ...] = ()  # per route: local HTTP code (0: no answer)
+    unit_ours: bool = False  # the unit file exists and carries raspi-manager's marker
+    unit_exec: str = ""  # ExecStart= of that unit (only read when it is ours)
+    unit_env: tuple[str, ...] = ()  # its EnvironmentFile= paths, in order
+    unit_dir: str = ""  # its WorkingDirectory=
+    home: str = ""  # login user's home on the Pi (read with the unit, to resolve $HOME)
 
     @property
     def state(self) -> str:

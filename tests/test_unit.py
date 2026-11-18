@@ -43,10 +43,7 @@ class Pi:
 def test_unit_runs_the_command_with_env_files_and_node_in_path():
     text = render_unit(APP, "pi", "/home/pi/apps/notes-app", "/n/bin")
     assert text.startswith(MARKER)
-    assert (
-        "User=pi" in text
-        and "WorkingDirectory=/home/pi/apps/notes-app" in text
-    )
+    assert "User=pi" in text and "WorkingDirectory=/home/pi/apps/notes-app" in text
     assert "Environment=PATH=/n/bin:/usr/local/bin:/usr/bin:/bin" in text
     assert "EnvironmentFile=/home/pi/apps/notes-app/.env" in text
     assert 'ExecStart=/bin/sh -c "exec npm start"' in text

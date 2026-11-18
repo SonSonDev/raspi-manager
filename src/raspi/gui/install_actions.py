@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 
 from raspi import APP_NAME
 from raspi.core.models import Host
-from raspi.gui.confirm import confirm_change
+from raspi.gui.confirm import confirm_change, confirm_with_option
 from raspi.gui.install_dialog import InstallAppDialog
 from raspi.gui.workers import submit
 from raspi.services.install import InstallPlan, install_app, plan_install
@@ -66,19 +66,25 @@ class InstallMixin:
     @Slot(object)
     def _on_install_planned(self, payload: tuple[Host, InstallPlan]) -> None:
         host, plan = payload
-        if not self._confirm_change(
-            f"Install {plan.app.name} on {host.name}?",
-            plan.steps,
-            [],
-            f"Script run on {host.name}:\n\n{plan.script}",
-            "Install",
-        ):
+        title = f"Install {plan.app.name} on {host.name}?"
+        script = f"Script run on {host.name}:\n\n{plan.script}"
+        with_unit = False
+        if plan.unit:
+            confirmed, with_unit = self._confirm_unit_too(
+                title, plan.steps, plan.unit, script
+            )
+            if not confirmed:
+                return
+        elif not self._confirm_change(title, plan.steps, [], script, "Install"):
             return
         self.status_label.setText(
             f"Installing {plan.app.name}… (cloning and building can take several minutes)"
         )
         submit(
-            lambda: (host, install_app(host, self._transport, plan)),
+            lambda: (
+                host,
+                install_app(host, self._transport, plan, with_unit=with_unit),
+            ),
             self._on_installed,
             self._install_failed,
         )
@@ -145,6 +151,22 @@ class InstallMixin:
             return True
         self.status_label.setText("Cancelled, nothing was changed.")
         return False
+
+    def _confirm_unit_too(self, title, steps, unit, script) -> tuple[bool, bool]:
+        """Install app changed what the unit says: offer to rewrite it, ticked, never restarting."""
+        confirmed, ticked = confirm_with_option(
+            self,
+            title,
+            steps,
+            [],
+            f"{script}\n\nUnit file (if ticked):\n\n{unit.text}",
+            "Install",
+            f"Also rewrite the unit {unit.app.unit} (the app is not restarted; "
+            "the new command applies at its next start)",
+        )
+        if not confirmed:
+            self.status_label.setText("Cancelled, nothing was changed.")
+        return confirmed, ticked
 
     def _install_failed(self, message: str) -> None:
         self.status_label.setText("Install step failed")

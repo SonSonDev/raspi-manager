@@ -24,6 +24,11 @@ def render_manifest(apps: tuple[AppRef, ...]) -> str:
                 entry[field] = getattr(app, field)
         if app.requires:
             entry["requires"] = [{"kind": r.kind, "path": r.path} for r in app.requires]
+        if app.routes:
+            entry["routes"] = [
+                {"hostname": r.hostname, "port": r.port, "check": r.check}
+                for r in app.routes
+            ]
         if app.env_files:
             entry["env_files"] = [
                 {"label": f.label, "path": f.path} for f in app.env_files

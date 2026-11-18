@@ -122,6 +122,11 @@ class EnvDialog(EnvFilesMixin, EnvPushMixin, EnvTemplateMixin, QDialog):
 
         self.btn_import = QPushButton("Import from Pi…")
         self.btn_import.clicked.connect(self.import_from_pi)
+        self.btn_reset = QPushButton("Reset from template…")
+        self.btn_reset.setToolTip(
+            "Replace the variables here by those of .env.example (nothing is pushed)"
+        )
+        self.btn_reset.clicked.connect(self.reset_from_template)
         self.btn_save = QPushButton("Save locally")
         self.btn_save.clicked.connect(self.save_local)
         self.btn_push = QPushButton("Push to Pi")
@@ -131,7 +136,7 @@ class EnvDialog(EnvFilesMixin, EnvPushMixin, EnvTemplateMixin, QDialog):
         close = QPushButton("Close")
         close.clicked.connect(self.close)
         buttons = QHBoxLayout()
-        for w in (self.btn_import, self.btn_save):
+        for w in (self.btn_import, self.btn_reset, self.btn_save):
             buttons.addWidget(w)
         buttons.addStretch()
         for w in (self.btn_push, self.btn_push_restart, close):

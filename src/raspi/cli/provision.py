@@ -161,6 +161,12 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
                 help="Prerequisite checked before start: folder|file|mount:PATH (repeatable)",
             ),
         ] = None,
+        update_unit: bool = typer.Option(
+            True,
+            "--update-unit/--keep-unit",
+            help="Rewrite the app's unit when run, folder or env files changed "
+            "(never restarts the app)",
+        ),
         dry_run: bool = typer.Option(
             False, "--dry-run", help="Show it, change nothing"
         ),
@@ -188,13 +194,21 @@ def register_provision(host_app: typer.Typer, live_host: LiveHost) -> None:
             raise _fail(str(exc)) from exc
         for step in plan.steps:
             typer.echo(f"  - {step}")
+        if plan.unit and update_unit:
+            for step in plan.unit.steps:
+                typer.echo(f"  - {step}")
+            typer.echo(
+                "  - The app is not restarted: the new command applies at its next start"
+            )
         if dry_run:
             typer.echo(f"\nScript run on {name}:\n{plan.script}")
+            if plan.unit and update_unit:
+                typer.echo(f"\nUnit file:\n{plan.unit.text}")
             typer.echo("Dry run: nothing was changed.")
             return
         if not yes:
             typer.confirm(f"Apply these changes on {name}?", abort=True)
-        result = install_app(live, transport, plan)
+        result = install_app(live, transport, plan, with_unit=update_unit)
         if not result.ok:
             raise _fail(f"✕ {result.message}")
         typer.secho(f"✓ {result.message}", fg="green")

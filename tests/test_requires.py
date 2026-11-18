@@ -92,8 +92,7 @@ def test_a_line_is_kind_then_path():
 def test_status_script_checks_each_kind_read_only_and_never_creates_anything():
     script = build_status_script((APP,))
     assert (
-        "mountpoint -q /mnt/data" in script
-        and "[ -f /mnt/data/.notes-app ]" in script
+        "mountpoint -q /mnt/data" in script and "[ -f /mnt/data/.notes-app ]" in script
     )
     for forbidden in ("mkdir", "mount /", "touch", "sudo", "rm "):
         assert forbidden not in script

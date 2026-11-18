@@ -24,6 +24,7 @@ class UnitPlan:
     script: str
     steps: list[str]
     warnings: list[str] = field(default_factory=list)
+    existing: bool = False  # replaces a unit of ours (False: creates it)
 
 
 def plan_unit(host: Host, transport: Transport, app: AppRef) -> UnitPlan:
@@ -58,7 +59,14 @@ def plan_unit(host: Host, transport: Transport, app: AppRef) -> UnitPlan:
         f"{verb} {UNIT_DIR}/{app.unit} (runs `{app.run}` as {host.user} in {workdir})",
         "Reload systemd and enable the unit (it is not started)",
     ]
-    return UnitPlan(app, text, build_install_script(app, text), steps, warnings)
+    return UnitPlan(
+        app,
+        text,
+        build_install_script(app, text),
+        steps,
+        warnings,
+        existing=facts.unit == "ours",
+    )
 
 
 @dataclass
