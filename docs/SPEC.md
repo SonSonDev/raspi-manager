@@ -109,6 +109,7 @@ Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`)
 - Done: `status` (state glyph + word, git rev with `*` when dirty, since, restarts, last checked, unreachable shown as an
   error); `start|stop|restart` through `sudo -n systemctl` (CLI: stop/restart ask unless `--yes`; all have `--dry-run`; GUI:
   stop/restart confirm, start is direct); `logs` (read-only, ≤ 1000 lines); 10 s auto-refresh, per-host jobs.
+- A unit that systemd is starting or restarting (state “working”) shows “Restarting (N restarts): see Logs” in Next step (or “Starting…” with no restart yet) instead of an empty cell: a process that fails at every start loops forever, since the unit has `Restart=on-failure` with 5 s between tries and no start limit is reached.
 - Dashboard mutations need a per-process token and a localhost Host header.
 - Done: an app whose unit does not exist shows “– no unit”; Start is disabled with a tooltip pointing to “Install unit…”, and a failed start on a missing unit says the same.
 - Planned: `pause`/`resume`

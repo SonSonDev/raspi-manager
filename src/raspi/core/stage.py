@@ -109,7 +109,19 @@ def next_step(app: AppRef, status: AppStatus | None) -> Next:
         if down_routes(app, status):
             return Next("Route not answering", route_summary(app, status))
         return Next(READY, done=True, why=route_summary(app, status))
-    return Next("")
+    return _working(status)
+
+
+def _working(live: AppStatus | ProcessStatus) -> Next:
+    """A unit that is starting or being restarted by systemd (its state is neither up nor down)."""
+    if live.state != "working":
+        return Next("")
+    if live.restarts:
+        return Next(
+            f"Restarting ({live.restarts} restarts): see Logs",
+            "systemd keeps restarting this unit after it failed: open Logs to see why.",
+        )
+    return Next("Starting…", "The unit is starting.")
 
 
 def process_next(
@@ -141,4 +153,4 @@ def process_next(
                 "restart it when you are ready.",
             )
         return Next(READY, done=True)
-    return Next("")
+    return _working(live)

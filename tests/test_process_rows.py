@@ -237,3 +237,19 @@ def test_the_status_script_reads_when_the_process_started_and_when_head_moved(
         process_next(app, status, BOT, status.processes[0]).label
         == "Old code (Restart)"
     )
+
+
+def test_a_unit_in_a_restart_loop_says_so_instead_of_showing_nothing():
+    status = live(APP)
+    _, server = status.processes
+    server.active, server.sub, server.restarts = "activating", "auto-restart", 19
+    step = process_next(APP, status, SERVER, server)
+    assert step.label == "Restarting (19 restarts): see Logs"
+    assert "Logs" in step.why
+    server.restarts = 0
+    assert process_next(APP, status, SERVER, server).label == "Starting…"
+    from raspi.core.stage import next_step
+
+    plain = parse_status(STATUS, (PLAIN,))[0]
+    plain.active, plain.restarts = "activating", 4
+    assert next_step(PLAIN, plain).label == "Restarting (4 restarts): see Logs"
