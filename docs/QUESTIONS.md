@@ -17,6 +17,9 @@ in SPEC / DECISIONS / WORKFLOW). Cleaned on 2026-11-15: answered, obsolete or su
 - [ ] **First real run** (nothing done on the real account yet): create an API token (Account › Cloudflare Tunnel: Edit, Zone › DNS: Edit, plus Zone › Zone: Read if the look-up fails; limited to the account and `nanmonee.com`), paste it in “Cloudflare…”, look up the zone. Then “Add route…” or “Set up route…” shows the exact changes before applying.
 
 ## Product
+- [ ] **Cloudflare token on the uConsole** (blocks F9 T4 only): the Windows Credential Manager does not exist there, and a headless Linux has no Secret Service. Options: an encrypted keyring file unlocked by a passphrase typed at start (`keyrings.alt`, new dependency), the token read from an environment variable at start (never written), or a `0600` file under `~/.raspi/` (breaks the “only in the keyring” rule). Recommendation: the environment variable first, then decide.
+- [ ] **SSH key on the uConsole**: an ssh-agent started at login, or a dedicated passphrase-less key limited to the Pis? Recommendation: a dedicated key, since `BatchMode=yes` never prompts for a passphrase.
+- [ ] **Config on the uConsole**: copy `~/.raspi/hosts.yaml` by hand, or add the Pis there with `raspi host add` and rely on each Pi's own `apps.yaml`? Recommendation: add the Pis there (the inventory already lives on each Pi).
 - [ ] **Kept process and database changes** (see WORKFLOW §6b): when a build or an update changes the schema of a database shared with a process set to `keep`, should the plan warn, refuse, or require a restart of that process? Recommendation: warn only when the app declares a migration step; no declaration, no detection.
 - [ ] **`pause`**: SIGSTOP (keeps memory, may break WebSocket apps) or just stop? Recommendation: offer SIGSTOP and warn.
 - [ ] **uv on the Pi**: installer script, release binary or apt? Only needed for Python apps.

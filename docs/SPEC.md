@@ -31,6 +31,7 @@ history, mobile, Cloudflare Access/WAF, multi-Pi load balancing.
 | F7 Main UI | partial |
 | F7b Guided “New app” wizard | done (fake Pi) |
 | F8 Fleet health | planned |
+| F9 Terminal UI (uConsole) | planned: T1 operation, T2 wizard and install, T3 Pi management, T4 the rest |
 
 ## F1 — Pis and provisioning
 - **Add / edit / remove a Pi** (done): GUI “Add a Pi…” (Ctrl+N), “Edit Pi…” (Ctrl+Shift+E; address and user, name locked),
@@ -165,6 +166,33 @@ and success states.
 ## F7b — Guided “New app” wizard
 Status: `done` with a fake Pi (the step states were read for real, read-only, on `raspi-v`). **App → New app…** (Ctrl+Shift+N): one form (name, repository, build, run, folder; run required), then a window listing five steps with a glyph (✓ done, ▶ current, ○ waiting) and a detail each: deploy key (created and checked with GitHub; a key GitHub refuses shows the public key to add), clone and build, environment (the existing editor, pre-filled from `.env.example`; or “the app needs no environment file”, remembered for the session only), systemd unit, start. Each step asks for confirmation with the exact script. The state is re-read from the Pi before and after every step, so closing the window at any point is safe: **App → Continue setup…** on the selected app reopens it at the first step not done. At the end it points to Cloudflare → Set up route….
 Not done: an “Add a Pi” key-install wizard, pre-flight checks.
+
+## F9 — Terminal UI (`raspi tui`)
+Status: `planned` (decided 2026-11-19, DECISIONS). A full-screen terminal front for a uConsole (Linux, text mode, about 100–160
+columns by 25–30 rows); same services as the CLI and the Qt app. Keyboard only (letters, no mouse needed); status = glyph + word;
+dark by default, `t` switches to light; no command palette.
+- **Layout**: one table (State, App, Host, Next step, Version, Since, Restarts) that drops columns by width (below 110 columns:
+  Since and Restarts go; below 80: also Host and Version), a banner for a configuration error or an empty setup, a status line
+  (“Last checked HH:MM:SS”), a footer listing the keys. Refresh every 10 s (`g` or F5 now); SSH only through `tui/workers.submit`.
+  One row per process, selection kept across refreshes, same Next step column as the Qt app.
+- **Changes**: every one goes through one confirmation screen (steps, warnings, `d` shows the exact script; `y` confirms, `n` or
+  Esc cancels; Cancel has the focus). Failures are shown in a message screen, never silent. Dry run stays a CLI option.
+- **T1 operation** (planned): `s` start (asks first when a prerequisite is missing), `x` stop, `r` restart (both confirm; also
+  allowed on a unit systemd keeps restarting), `l`/Enter logs (200 lines, `m` for 1000, `g`/`G` top/bottom, `r` reload),
+  `u` update (ref or latest, “go back to the previous version”, a tick box per process whose rule is `ask`), `e` environment editor.
+  Environment editor: masked values with `v` to show, edit/add/remove a variable, import from the Pi, save locally, push, push and
+  restart (names only in every message), start from `.env.example`, several files per app (switch, declare, forget); declares the
+  first file when none exists, as in the Qt app.
+- **T2** (planned): New app wizard, Continue setup, Install app, Install unit. **T3** (planned): add/edit/remove a Pi, Check Pi,
+  Install missing, Install Node, deploy keys, tools. **T4** (planned): Cloudflare window, route setup, remove app, move app,
+  adopt scan, publish.
+- **Linux**: `ssh` is the system one (`which ssh`); the key must be usable without a prompt (`BatchMode=yes`), so an agent or an
+  unencrypted key is required on the uConsole, and each Pi's host key must be accepted once by hand. The Cloudflare token needs
+  another store than the Windows Credential Manager (QUESTIONS). Error hints that name a PowerShell script are reworded per platform.
+- **Tests**: Textual's `App.run_test()` driven from plain pytest (`asyncio.run`), with the fake transport of the service tests;
+  each key flow tested end to end (key → plan → confirm → apply → message, failure path included) at 80×24 and 160×30; ruff and the
+  full suite. What runs on the real uConsole is up to the developer; looks are judged from the test driver's SVG screenshots.
+- Not planned: mouse-first layouts, tray or notifications.
 
 ## Project compatibility checklist (what an app needs to be managed by raspi)
 1. A git repo with a remote (deploy by ref). 2. A declared Node/Python version (`engines`, `.nvmrc`). 3. A build step as a
