@@ -200,12 +200,20 @@ class MainWindow(
         self.btn_start.setToolTip(self.start_tooltip(state))
         self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_update.setEnabled(self.can_update())
+        self.btn_quick_update.setEnabled(self.can_update())
         self.btn_new.setEnabled(self.can_install_app())
         self.btn_tools.setEnabled(self.can_install_tools())
         self.btn_remove_app.setEnabled(self.can_remove_app())
         self.btn_move.setEnabled(self.can_move_app())
         self.btn_continue.setEnabled(self.can_continue_setup())
         self.btn_update.setToolTip(self.update_tooltip())
+        if self.can_update():
+            self.btn_quick_update.setToolTip(
+                "Update to the latest version of the default branch (Ctrl+U); "
+                "you confirm first"
+            )
+        else:
+            self.btn_quick_update.setToolTip(self.update_tooltip())
         self.btn_route.setEnabled(self.can_route())
         self.btn_env.setEnabled(bool(row and row.app))
         declared = bool(row and row.app and row.app.env_files)

@@ -48,6 +48,16 @@ class UpdateMixin:
         if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.result_value:
             return
         ref, rollback = dialog.result_value
+        self._plan_update_for(row, ref, rollback)
+
+    def quick_update(self) -> None:
+        """One click: plan the update to the latest of the default branch, then the usual
+        confirmation (incoming commits, script) before anything changes."""
+        row = self.selected()
+        if row and row.app:
+            self._plan_update_for(row, "", False)
+
+    def _plan_update_for(self, row, ref: str, rollback: bool) -> None:
         host, app = row.host, row.app
         self.status_label.setText(f"Checking what updating {app.name} would do…")
         submit(

@@ -1,7 +1,7 @@
 """Menu bar and toolbar of the main window.
 
 One QAction per command, shared by the menus and the toolbar (so a shortcut exists once):
-  toolbar (one slim line) - what is used every day: Restart, Start, Stop, Logs | Environment, Update | Refresh
+  toolbar (one slim line) - what is used every day: Restart, Start, Stop, Logs | Environment, Quick update, Update… | Refresh
   menu Pi                 - look after a Pi (rare)
   menu App                - New app… / Continue setup… (the wizard), then each step on its own, in workflow order, then Remove app…
   menu Cloudflare         - routes and the Cloudflare window
@@ -39,6 +39,13 @@ def build_chrome(window) -> None:
     logs = a("btn_logs", "Logs", window.show_logs, "Ctrl+L")
     env = a("btn_env", "Environment…", window.edit_env, "Ctrl+E")
     update = a("btn_update", "Update…", window.update_app_form)
+    quick = a(
+        "btn_quick_update",
+        "Quick update",
+        window.quick_update,
+        "Ctrl+U",
+        "Update to the latest version of the default branch (Ctrl+U); you confirm first",
+    )
     refresh = a("btn_refresh", "Refresh", window.refresh, "F5")
 
     new_app = a(
@@ -131,7 +138,7 @@ def build_chrome(window) -> None:
     app_menu.addSeparator()
     app_menu.addActions([key, install, env, unit])
     app_menu.addSeparator()
-    app_menu.addAction(update)
+    app_menu.addActions([quick, update])
     app_menu.addSeparator()
     app_menu.addAction(move)
     app_menu.addSeparator()
@@ -145,7 +152,7 @@ def build_chrome(window) -> None:
     window.addToolBar(bar)
     bar.addActions([restart, start, stop, logs])
     bar.addSeparator()
-    bar.addActions([env, update])
+    bar.addActions([env, quick, update])
     spacer = QWidget()
     spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     bar.addWidget(spacer)

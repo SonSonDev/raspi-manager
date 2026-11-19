@@ -3,6 +3,11 @@ One entry per decision, newest first. A decision is only changed by a new entry 
 Not logged: visual tweaks, tuning values, reverted trials.
 Superseded or reversed entries are kept in `docs/archive/DECISIONS-superseded-2026-11.md`.
 
+## 2026-11-19 — “Quick update” keeps the confirmation
+- Decision: a toolbar button (Ctrl+U) updates the selected app to the latest of the default branch without the version dialog, but still shows the plan and asks to confirm.
+- Why: one click for the daily case; the confirmation lists incoming commits and the script, and an update rebuilds and may restart, so it is not skipped.
+- Alternatives rejected: updating with no confirmation (a build and restart without a look); a button for all apps at once (not asked).
+
 ## 2026-11-19 — A terminal UI for a uConsole: Textual, same services, built in phases (planned)
 - Decision: add a fourth front, `raspi tui`, a full-screen terminal app built with **Textual 8.2.8** (MIT, Textualize, released 2026-06-30, checked on PyPI on 2026-11-19). It runs **on the uConsole itself** (Linux, aarch64, text terminal) and reaches the Pis over `ssh` like the PC does; config is the uConsole's own `~/.raspi/`. It is a thin front on the same `services/` and `core/` as the CLI and the Qt app: no logic is duplicated. Without a subcommand `raspi` opens the Qt app where PySide6 is installed (Windows) and the TUI elsewhere. Built in four phases (SPEC F9): **T1** operation (table, start/stop/restart, logs, update and rollback, environment editor), **T2** new-app wizard and install, **T3** Pi management (add/edit/remove, check, provision, deploy keys, tools), **T4** the rest (Cloudflare, remove, move, adopt, publish).
 - Why: the developer wants to operate the Pis from a ClockworkPi uConsole in a text terminal, away from the Windows PC. A terminal is the only interface that works there.

@@ -99,6 +99,7 @@ Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`)
   commit subjects, the steps and notes; refused for an app without `repo`, not cloned, with uncommitted changes to tracked
   files, or with commits that exist only on the Pi. Applying checks out that exact commit (detached), runs the build with
   nvm's Node, records `built` and `previous` in `apps.yaml`, and restarts the unit only if it was running (and sudo works).
+- **Quick update** (done, Ctrl+U, toolbar and App menu): skips the version dialog and plans the update to the latest of the default branch; the usual confirmation (incoming commits, script, per-process rules) still comes before anything changes. Same enabling as “Update…”.
 - Rollback: “Update…” → “Go back to the previous version” / `host rollback NAME APP`: same mechanism to `previous`, or to
   the last `built` revision after a failed update; `previous` is cleared.
 - A failed build leaves the working copy on the new commit, restarts nothing, records nothing; the “Next step” column then
