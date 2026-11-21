@@ -100,6 +100,7 @@ Status: `done` with a fake Pi (the plan's read-only part rehearsed on `raspi-v`)
   files, or with commits that exist only on the Pi. Applying checks out that exact commit (detached), runs the build with
   nvm's Node, records `built` and `previous` in `apps.yaml`, and restarts the unit only if it was running (and sudo works).
 - **Quick update** (done, Ctrl+U, toolbar and App menu): skips the version dialog and plans the update to the latest of the default branch; the usual confirmation (incoming commits, script, per-process rules) still comes before anything changes. Same enabling as “Update…”.
+- **Update now** (done, Ctrl+Shift+U, App menu only): plans and applies the update to the latest of the default branch with **no confirmation**. The plan's refusals (dirty copy, commits only on the Pi, no repo) still stop it, `ask` processes are restarted as with `--yes`, and the result is always shown. Not in the toolbar, so it is not hit by accident.
 - Rollback: “Update…” → “Go back to the previous version” / `host rollback NAME APP`: same mechanism to `previous`, or to
   the last `built` revision after a failed update; `previous` is cleared.
 - A failed build leaves the working copy on the new commit, restarts nothing, records nothing; the “Next step” column then
@@ -161,7 +162,7 @@ Built and tested against a simulated Cloudflare only (never run on the real acco
 ## F7 — Main UI
 Native Qt app (`raspi gui`, platform look): menu bar (Pi, App in workflow order, Cloudflare) + one slim toolbar (Restart, Start, Stop, Logs | Environment, Update | Refresh), see DESIGN.md; live table, Restart/Start/Stop/Logs/Refresh with shortcuts (F5, Ctrl+R, Ctrl+S, Ctrl+L),
 confirmation dialogs, logs dock, unreachable and “checking” states, light/dark. The web dashboard is a secondary front.
-Done: a **“Next step”** column per app (WORKFLOW §2: deploy key, clone, build, run command, environment, unit, start, ready) with the reason in the tooltip. Planned: the other buttons following the stage; “routed” in the column; version picker; tray icon. Every screen has loading, empty, error
+Done: a **“Next step”** column per app (WORKFLOW §2: deploy key, clone, build, run command, environment, unit, start, ready) with the reason in the tooltip. **Keep on top** (done): **View → Keep on top** (Ctrl+T, checkable) keeps the window above the others; the choice is remembered between runs (`QSettings`, read in `gui/app.py`). Planned: the other buttons following the stage; “routed” in the column; version picker; tray icon. Every screen has loading, empty, error
 and success states.
 
 ## F7b — Guided “New app” wizard

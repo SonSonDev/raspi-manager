@@ -46,6 +46,13 @@ def build_chrome(window) -> None:
         "Ctrl+U",
         "Update to the latest version of the default branch (Ctrl+U); you confirm first",
     )
+    now = a(
+        "btn_update_now",
+        "Update now",
+        window.update_now,
+        "Ctrl+Shift+U",
+        "Update to the latest version with NO confirmation (Ctrl+Shift+U)",
+    )
     refresh = a("btn_refresh", "Refresh", window.refresh, "F5")
 
     new_app = a(
@@ -138,7 +145,7 @@ def build_chrome(window) -> None:
     app_menu.addSeparator()
     app_menu.addActions([key, install, env, unit])
     app_menu.addSeparator()
-    app_menu.addActions([quick, update])
+    app_menu.addActions([quick, now, update])
     app_menu.addSeparator()
     app_menu.addAction(move)
     app_menu.addSeparator()
@@ -146,6 +153,18 @@ def build_chrome(window) -> None:
 
     cloud_menu = menus.addMenu("&Cloudflare")
     cloud_menu.addActions([route, cloudflare])
+
+    on_top = a(
+        "btn_on_top",
+        "Keep on top",
+        window.set_keep_on_top,
+        "Ctrl+T",
+        "Keep this window above the others (Ctrl+T)",
+    )
+    on_top.setCheckable(True)
+    on_top.triggered.disconnect()  # a checkable action passes its state, wired below
+    on_top.toggled.connect(window.set_keep_on_top)
+    menus.addMenu("&View").addAction(on_top)
 
     bar = QToolBar("Actions")
     bar.setMovable(False)

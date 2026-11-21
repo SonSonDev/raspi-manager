@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QStyleFactory
 
 from raspi import APP_NAME
@@ -44,5 +44,9 @@ def run() -> int:
         window.model.set_tokens(t)
 
     app.styleHints().colorSchemeChanged.connect(retheme)
+    # remembered between runs; read here, not in the window, so tests never touch the registry
+    settings = QSettings(APP_NAME, APP_NAME)
+    window.btn_on_top.setChecked(settings.value("keep_on_top", False, type=bool))
+    window.btn_on_top.toggled.connect(lambda on: settings.setValue("keep_on_top", on))
     window.show()
     return app.exec()

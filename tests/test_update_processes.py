@@ -198,7 +198,7 @@ def _gui(qapp, monkeypatch, ticked):
     for name in ("information", "critical"):
         monkeypatch.setattr(update_actions.QMessageBox, name, lambda *a: None)
     window = MainWindow([host_of(app)], pi, LIGHT, auto_refresh=False)
-    window._on_update_planned((host_of(app), plan_update(host_of(app), pi, app)))
+    window._on_update_planned((host_of(app), plan_update(host_of(app), pi, app), True))
     window.close()
     return pi, asked
 

@@ -133,6 +133,16 @@ class MainWindow(
             self.timer.start()
             QTimer.singleShot(0, self.refresh)
 
+    def set_keep_on_top(self, on: bool) -> None:
+        if bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint) == on:
+            return
+        was_visible = self.isVisible()
+        # changing a window flag hides the window; show it again where it was
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
+        if was_visible:
+            self.show()
+        self.btn_on_top.setChecked(on)
+
     # --- layout ---------------------------------------------------------------
     def _build_toolbar(self) -> None:
         build_chrome(self)
@@ -201,6 +211,12 @@ class MainWindow(
         self.btn_unit.setToolTip(self.unit_tooltip())
         self.btn_update.setEnabled(self.can_update())
         self.btn_quick_update.setEnabled(self.can_update())
+        self.btn_update_now.setEnabled(self.can_update())
+        self.btn_update_now.setToolTip(
+            "Update to the latest version with NO confirmation (Ctrl+Shift+U)"
+            if self.can_update()
+            else self.update_tooltip()
+        )
         self.btn_new.setEnabled(self.can_install_app())
         self.btn_tools.setEnabled(self.can_install_tools())
         self.btn_remove_app.setEnabled(self.can_remove_app())

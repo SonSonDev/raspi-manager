@@ -235,7 +235,7 @@ def test_gui_update_flow_runs_after_confirmation(qapp, monkeypatch):
     monkeypatch.setattr(MainWindow, "_confirm_change", lambda *a: True)
     pi = Pi()
     window = MainWindow([HOST], pi, LIGHT, auto_refresh=False)
-    window._on_update_planned((HOST, plan_update(HOST, pi, APP)))
+    window._on_update_planned((HOST, plan_update(HOST, pi, APP), True))
     assert any("git checkout --detach" in s for s in pi.scripts)
     assert shown and "Recorded" in shown[0]
     window.close()

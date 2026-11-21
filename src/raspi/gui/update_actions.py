@@ -57,18 +57,32 @@ class UpdateMixin:
         if row and row.app:
             self._plan_update_for(row, "", False)
 
-    def _plan_update_for(self, row, ref: str, rollback: bool) -> None:
+    def update_now(self) -> None:
+        """No confirmation: plan and apply the update to the latest of the default branch.
+        The plan's own refusals (dirty copy, commits only on the Pi) still stop it, and the
+        result is always shown; processes with the `ask` rule are restarted, as with `--yes`."""
+        row = self.selected()
+        if row and row.app:
+            self._plan_update_for(row, "", False, confirm=False)
+
+    def _plan_update_for(
+        self, row, ref: str, rollback: bool, confirm: bool = True
+    ) -> None:
         host, app = row.host, row.app
         self.status_label.setText(f"Checking what updating {app.name} would do…")
         submit(
-            lambda: (host, plan_update(host, self._transport, app, ref, rollback)),
+            lambda: (
+                host,
+                plan_update(host, self._transport, app, ref, rollback),
+                confirm,
+            ),
             self._on_update_planned,
             self._update_failed,
         )
 
     @Slot(object)
-    def _on_update_planned(self, payload: tuple[Host, UpdatePlan]) -> None:
-        host, plan = payload
+    def _on_update_planned(self, payload: tuple[Host, UpdatePlan, bool]) -> None:
+        host, plan, confirm = payload
         if plan.nothing_to_do:
             self.status_label.setText("Already up to date.")
             QMessageBox.information(
@@ -85,7 +99,7 @@ class UpdateMixin:
             if plan.rollback
             else f"Update {plan.app.name} to {plan.new[:7]} on {host.name}?"
         )
-        if not self._confirm_update(title, plan, details):
+        if confirm and not self._confirm_update(title, plan, details):
             return
         self.status_label.setText(
             f"Updating {plan.app.name}… (the build can take several minutes)"

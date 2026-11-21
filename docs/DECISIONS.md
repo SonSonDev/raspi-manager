@@ -3,6 +3,16 @@ One entry per decision, newest first. A decision is only changed by a new entry 
 Not logged: visual tweaks, tuning values, reverted trials.
 Superseded or reversed entries are kept in `docs/archive/DECISIONS-superseded-2026-11.md`.
 
+## 2026-11-21 — “Update now”: an update with no confirmation, App menu only
+- Decision: **App → Update now** (Ctrl+Shift+U) applies the update to the latest of the default branch straight away. Refusals of the plan still apply and the result dialog is kept. Not on the toolbar.
+- Why: the developer asked for a no-confirmation path for the daily case; Quick update keeps its confirmation for the careful case. Keeping the result and refusals means a failure is never silent.
+- Alternatives rejected: a setting that turns the confirmation off for Quick update (hidden behaviour change); a toolbar button next to Quick update (easy mis-click on an action that builds and restarts).
+
+## 2026-11-21 — “Keep on top” is a View menu toggle, remembered with QSettings
+- Decision: **View → Keep on top** (Ctrl+T) sets Qt's `WindowStaysOnTopHint` on the main window. The state is stored with `QSettings` (part of Qt, no new dependency), read and written in `gui/app.py` only.
+- Why: the developer wants to watch the fleet while working in other windows. Persisting avoids re-ticking it at each launch; keeping it out of `MainWindow` means tests never touch the registry.
+- Alternatives rejected: a toolbar button (the toolbar is for daily actions; this is a window preference); a session-only setting (forgotten at each start).
+
 ## 2026-11-19 — “Quick update” keeps the confirmation
 - Decision: a toolbar button (Ctrl+U) updates the selected app to the latest of the default branch without the version dialog, but still shows the plan and asks to confirm.
 - Why: one click for the daily case; the confirmation lists incoming commits and the script, and an update rebuilds and may restart, so it is not skipped.
